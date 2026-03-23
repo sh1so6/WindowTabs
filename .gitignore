@@ -6,11 +6,13 @@
 
 # NuGet packages (auto-restored on build)
 packages/
+.nuget/
 
 # Build artifacts (intermediate files and outputs)
 # Note: exe/ folder contains intentional build outputs for distribution
 **/obj/
 **/bin/Debug/
 **/bin/Release/
+**/bin/Any CPU/
 *.pdb
 /exe/

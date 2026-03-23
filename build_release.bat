@@ -28,6 +28,18 @@ if not exist %MSBUILD% (
 )
 
 :: ----------------------------------------
+:: Restore application dependencies
+:: ----------------------------------------
+echo Restoring dependencies...
+%MSBUILD% WtProgram\WtProgram.fsproj /restore /p:Configuration=Release /p:Platform=AnyCPU /v:minimal
+if errorlevel 1 (
+    echo ERROR: WtProgram restore failed
+    exit /b 1
+)
+echo Restore completed successfully.
+echo.
+
+:: ----------------------------------------
 :: Clean OneDrive sync conflict files
 :: ----------------------------------------
 echo Cleaning OneDrive sync conflict files...
@@ -141,7 +153,7 @@ if errorlevel 1 (
     echo.
     echo Make sure WiX Toolset is installed:
     echo   1. Install WiX Toolset v3.11 or newer
-    echo   2. Or restore NuGet packages: nuget restore WindowTabs.sln
+    echo   2. Or rerun this script after dependency restore succeeds
     exit /b 1
 )
 

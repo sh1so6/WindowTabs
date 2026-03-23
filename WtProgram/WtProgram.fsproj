@@ -1,28 +1,24 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProductVersion>8.0.30703</ProductVersion>
-    <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{ae7d5e18-ac62-4bd3-ab9e-02cbb2eb29d6}</ProjectGuid>
     <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <RootNamespace>WindowTabs</RootNamespace>
     <AssemblyName>WindowTabs</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <Name>WtProgram</Name>
-    <TargetFrameworkProfile />
-    <SccProjectName>&lt;Project Location In Database&gt;</SccProjectName>
-    <SccProvider>Mercurial Source Control Package</SccProvider>
-    <SccAuxPath>&lt;Source Control Database&gt;</SccAuxPath>
-    <SccLocalPath>&lt;Local Binding Root of Project&gt;</SccLocalPath>
-    <Win32Resource>.\app.res</Win32Resource>
-    <TargetFSharpCoreVersion>2.3.0.0</TargetFSharpCoreVersion>
-    <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
-    <!-- Suppress satellite resource assembly generation (language folders) -->
+    <Win32Resource>app.res</Win32Resource>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -32,108 +28,43 @@
     <WarningLevel>3</WarningLevel>
     <NoWarn>0040,0058,0046,0760,1183</NoWarn>
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
-    <StartArguments>
-    </StartArguments>
-    <OtherFlags>
-    </OtherFlags>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
-    <OutputPath>bin\Release</OutputPath>
+    <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <OtherFlags>--staticlink:Win32 --staticlink:Newtonsoft.Json --staticlink:Aga.Controls --staticlink:Interop.SHDocVw --staticlink:Interop.Shell32</OtherFlags>
-    <NoWarn>0058,2009,0760,1183, 0046</NoWarn>
+    <NoWarn>0058,2009,0760,1183,0046</NoWarn>
   </PropertyGroup>
-  <Choose>
-    <When Condition="'$(VisualStudioVersion)' == '11.0'">
-      <PropertyGroup>
-        <FSharpTargetsPath>$(MSBuildExtensionsPath32)\..\Microsoft SDKs\F#\3.0\Framework\v4.0\Microsoft.FSharp.Targets</FSharpTargetsPath>
-      </PropertyGroup>
-    </When>
-    <Otherwise>
-      <PropertyGroup>
-        <FSharpTargetsPath>$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\FSharp\Microsoft.FSharp.Targets</FSharpTargetsPath>
-      </PropertyGroup>
-    </Otherwise>
-  </Choose>
-  <Import Project="$(FSharpTargetsPath)" Condition="Exists('$(FSharpTargetsPath)')" />
-  <PropertyGroup>
-    <PostBuildEvent>echo ===== Removing language resource folders =====
-for %%d in (cs de en es fr it ja ja-JP ko pl pt-BR ru tr zh-Hans zh-Hant) do (
-  if exist "$(TargetDir)%%d" (
-    echo Removing $(TargetDir)%%d
-    rmdir /s /q "$(TargetDir)%%d"
-  )
-)
 
-echo ===== Copying Language files =====
-if exist "$(TargetDir)Language" (
-  echo Removing existing Language folder...
-  rmdir /s /q "$(TargetDir)Language"
-)
-mkdir "$(TargetDir)Language"
-copy /y "$(ProjectDir)Language\*.json" "$(TargetDir)Language\"
-
-echo ===== Copying Settings files =====
-if not exist "$(TargetDir)Settings" (
-  mkdir "$(TargetDir)Settings"
-)
-copy /y "$(ProjectDir)Settings\*.json" "$(TargetDir)Settings\"
-
-if $(ConfigurationName) == Release (
-  echo ===== ILRepack処理開始 =====
-
-  if not exist "$(ProjectDir)..\packages\ILRepack.2.0.18\tools\ILRepack.exe" (
-    echo ILRepack.exeが見つかりません
-    exit /b 0
-  )
-
-  echo 元のexeをバックアップ中...
-  copy "$(TargetPath)" "$(TargetDir)WindowTabs_original.exe"
-
-  echo ILRepackでDLLを統合中...
-  "$(ProjectDir)..\packages\ILRepack.2.0.18\tools\ILRepack.exe" /parallel /internalize /target:winexe /out:"$(TargetDir)WindowTabs_packed.exe" "$(TargetDir)WindowTabs_original.exe" "$(TargetDir)Win32.dll" "$(TargetDir)Aga.Controls.dll" "$(TargetDir)Newtonsoft.Json.dll" "$(TargetDir)FSharp.Core.dll" "$(TargetDir)FSharp.PowerPack.dll" "$(TargetDir)FSharp.PowerPack.Linq.dll" "$(TargetDir)FSharp.PowerPack.Metadata.dll" "$(TargetDir)FSharp.PowerPack.Parallel.Seq.dll" "$(TargetDir)Interop.SHDocVw.dll" "$(TargetDir)Interop.Shell32.dll"
-
-  if exist "$(TargetDir)WindowTabs_packed.exe" (
-    echo 統合成功！
-    del "$(TargetPath)"
-    move "$(TargetDir)WindowTabs_packed.exe" "$(TargetPath)"
-    del "$(TargetDir)WindowTabs_original.exe"
-  ) else (
-    echo 統合失敗 - オリジナルを維持
-    move "$(TargetDir)WindowTabs_original.exe" "$(TargetPath)"
-  )
-)
-    </PostBuildEvent>
-  </PropertyGroup>
   <ItemGroup>
     <Compile Include="Localization\Localization_English.fs" />
     <Compile Include="Localization\JsoncHelper.fs" />
     <Compile Include="Localization\Localization.fs" />
-    <Compile Include="Shared/Operators.fs" />
-    <Compile Include="Shared/Dynamic.fs" />
-    <Compile Include="Shared/Observable.fs" />
-    <Compile Include="Shared/Blackboard.fs" />
-    <Compile Include="Shared/Invoker.fs" />
-    <Compile Include="Shared/Cell.fs" />
-    <Compile Include="Shared/Drawing.fs" />
-    <Compile Include="Shared/Sprite.fs" />
+    <Compile Include="Shared\Operators.fs" />
+    <Compile Include="Shared\Dynamic.fs" />
+    <Compile Include="Shared\Observable.fs" />
+    <Compile Include="Shared\Blackboard.fs" />
+    <Compile Include="Shared\Invoker.fs" />
+    <Compile Include="Shared\Cell.fs" />
+    <Compile Include="Shared\Drawing.fs" />
+    <Compile Include="Shared\Sprite.fs" />
     <Compile Include="Shared\TabStripTypes.fs" />
-    <Compile Include="Shared/Win32.fs" />
+    <Compile Include="Shared\Win32.fs" />
     <Compile Include="Shared\ProgramTypes.fs" />
-    <Compile Include="Shared/DragDrop.fs" />
-    <Compile Include="Shared/Serialize.fs" />
-    <Compile Include="Shared/DarkMode.fs" />
-    <Compile Include="Shared/Win32Menu.fs" />
-    <Compile Include="Shared/Services.fs" />
-    <Compile Include="Shared/AnimationWindow.fs" />
-    <Compile Include="Shared/Forms.fs" />
-    <Compile Include="Shared/Json.fs" />
-    <Compile Include="Shared/Shell.fs" />
-    <Compile Include="Shared/Model.fs" />
+    <Compile Include="Shared\DragDrop.fs" />
+    <Compile Include="Shared\Serialize.fs" />
+    <Compile Include="Shared\DarkMode.fs" />
+    <Compile Include="Shared\Win32Menu.fs" />
+    <Compile Include="Shared\Services.fs" />
+    <Compile Include="Shared\AnimationWindow.fs" />
+    <Compile Include="Shared\Forms.fs" />
+    <Compile Include="Shared\Json.fs" />
+    <Compile Include="Shared\Shell.fs" />
+    <Compile Include="Shared\Model.fs" />
     <Compile Include="Shared\UIHelper.fs" />
     <Compile Include="HotKeyManager.fs" />
     <Compile Include="DragDropController.fs" />
@@ -144,9 +75,9 @@ if $(ConfigurationName) == Release (
     <Compile Include="OleDropTarget.fs" />
     <Compile Include="WindowGroup.fs" />
     <Compile Include="TabStripDecorator.fs" />
-    <Compile Include="GroupPlugins/SuperBarPlugin.fs" />
-    <Compile Include="GroupPlugins/NumericTabHotKeyPlugin.fs" />
-    <Compile Include="GroupPlugins/HideTabsOnInactiveGroupPlugin.fs" />
+    <Compile Include="GroupPlugins\SuperBarPlugin.fs" />
+    <Compile Include="GroupPlugins\NumericTabHotKeyPlugin.fs" />
+    <Compile Include="GroupPlugins\HideTabsOnInactiveGroupPlugin.fs" />
     <Compile Include="Desktop.fs" />
     <Compile Include="Launcher.fs" />
     <Compile Include="Workspace\WorkspaceModel.fs" />
@@ -159,10 +90,13 @@ if $(ConfigurationName) == Release (
     <Compile Include="ManagerViewService\DesktopManagerForm.fs" />
     <Compile Include="ManagerViewService\ManagerViewService.fs" />
     <Compile Include="FilterService.fs" />
-    <Compile Include="DesktopPlugins/InputManagerPlugin.fs" />
-    <Compile Include="DesktopPlugins/NotifyIconPlugin.fs" />
-    <Compile Include="DesktopPlugins/ExceptionHandlerPlugin.fs" />
+    <Compile Include="DesktopPlugins\InputManagerPlugin.fs" />
+    <Compile Include="DesktopPlugins\NotifyIconPlugin.fs" />
+    <Compile Include="DesktopPlugins\ExceptionHandlerPlugin.fs" />
     <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Resources\Bemo.ico" />
     <EmbeddedResource Include="Resources\workspace.png" />
     <EmbeddedResource Include="Resources\add.png" />
@@ -173,55 +107,70 @@ if $(ConfigurationName) == Release (
     <EmbeddedResource Include="Resources\group-closed.png" />
     <EmbeddedResource Include="Resources\restore.png" />
     <EmbeddedResource Include="Resources\window.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="App.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <Content Include="packages.config" />
+    <LanguageFiles Include="Language\*.json" />
+    <SettingsFiles Include="Settings\*.json" />
+    <SatelliteFolder Include="cs;de;en;es;fr;it;ja;ja-JP;ko;pl;pt-BR;ru;tr;zh-Hans;zh-Hant" />
   </ItemGroup>
+
   <ItemGroup>
-    <Reference Include="Aga.Controls">
-      <HintPath>..\Aga.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="FSharp.Core, Version=4.6.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-      <Private>True</Private>
-      <HintPath>..\packages\FSharp.Core.4.6.2\lib\net45\FSharp.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="FSharp.PowerPack">
-      <HintPath>..\packages\FSPowerPack.Core.Community.3.0.0.0\lib\Net40\FSharp.PowerPack.dll</HintPath>
-    </Reference>
-    <Reference Include="FSharp.PowerPack.Linq">
-      <HintPath>..\packages\FSPowerPack.Linq.Community.3.0.0.0\lib\Net40\FSharp.PowerPack.Linq.dll</HintPath>
-    </Reference>
-    <Reference Include="FSharp.PowerPack.Metadata">
-      <HintPath>..\packages\FSPowerPack.Metadata.Community.3.0.0.0\lib\Net40\FSharp.PowerPack.Metadata.dll</HintPath>
-    </Reference>
-    <Reference Include="FSharp.PowerPack.Parallel.Seq">
-      <HintPath>..\packages\FSPowerPack.Parallel.Seq.Community.3.0.0.0\lib\Net40\FSharp.PowerPack.Parallel.Seq.dll</HintPath>
-    </Reference>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="FSPowerPack.Core.Community" />
+    <PackageReference Include="ILRepack" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="Interop.SHDocVw">
       <HintPath>..\Interop.SHDocVw.dll</HintPath>
     </Reference>
     <Reference Include="Interop.Shell32">
       <HintPath>..\Interop.Shell32.dll</HintPath>
     </Reference>
-    <Reference Include="mscorlib" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
-    <ProjectReference Include="..\Win32\Win32.csproj">
-      <Name>Win32</Name>
-      <Project>{08d5e815-cc69-4d6e-83bd-ef119618ea9c}</Project>
-      <Private>True</Private>
-    </ProjectReference>
   </ItemGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-	     Other similar extension points exist, see Microsoft.Common.targets.
-	<Target Name="BeforeBuild">
-	</Target>
-	<Target Name="AfterBuild">
-	</Target>
-	-->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Win32\Win32.csproj" />
+    <ProjectReference Include="..\treeviewadv\Aga.Controls\Aga.Controls.Sdk.csproj" />
+  </ItemGroup>
+
+  <Target Name="RemoveSatelliteResources" AfterTargets="Build">
+    <RemoveDir Directories="@(SatelliteFolder->'$(TargetDir)%(Identity)')" />
+  </Target>
+
+  <Target Name="CopyRuntimeContent" AfterTargets="Build">
+    <RemoveDir Directories="$(TargetDir)Language" Condition="Exists('$(TargetDir)Language')" />
+    <MakeDir Directories="$(TargetDir)Language" />
+    <Copy SourceFiles="@(LanguageFiles)" DestinationFolder="$(TargetDir)Language" SkipUnchangedFiles="true" />
+
+    <MakeDir Directories="$(TargetDir)Settings" Condition="!Exists('$(TargetDir)Settings')" />
+    <Copy SourceFiles="@(SettingsFiles)" DestinationFolder="$(TargetDir)Settings" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="MergeReleaseExecutable" AfterTargets="CopyRuntimeContent" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <ILRepackExe>$(PkgILRepack)\tools\ILRepack.exe</ILRepackExe>
+      <ILRepackLibDir>$([System.String]::Copy('$(TargetDir)').TrimEnd('\'))</ILRepackLibDir>
+    </PropertyGroup>
+
+    <Error Condition="'$(PkgILRepack)' == '' or !Exists('$(ILRepackExe)')" Text="ILRepack.exe was not restored. Run a restore before building the Release configuration." />
+
+    <Delete Files="$(TargetDir)WindowTabs_original.exe;$(TargetDir)WindowTabs_packed.exe" ContinueOnError="true" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(TargetDir)WindowTabs_original.exe" />
+    <Exec Command="&quot;$(ILRepackExe)&quot; /parallel /internalize /target:winexe /lib:&quot;$(ILRepackLibDir)&quot; /out:&quot;$(TargetDir)WindowTabs_packed.exe&quot; &quot;$(TargetDir)WindowTabs_original.exe&quot; &quot;$(TargetDir)Win32.dll&quot; &quot;$(TargetDir)Aga.Controls.dll&quot; &quot;$(TargetDir)Newtonsoft.Json.dll&quot; &quot;$(TargetDir)FSharp.Core.dll&quot; &quot;$(TargetDir)FSharp.PowerPack.dll&quot; &quot;$(TargetDir)Interop.SHDocVw.dll&quot; &quot;$(TargetDir)Interop.Shell32.dll&quot;" />
+    <Error Condition="!Exists('$(TargetDir)WindowTabs_packed.exe')" Text="ILRepack did not produce a merged executable." />
+    <Delete Files="$(TargetPath)" />
+    <Move SourceFiles="$(TargetDir)WindowTabs_packed.exe" DestinationFiles="$(TargetPath)" />
+    <Delete Files="$(TargetDir)WindowTabs_original.exe" />
+  </Target>
 </Project>

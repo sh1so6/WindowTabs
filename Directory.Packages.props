@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="FSharp.Core" Version="4.6.2" />
+    <PackageVersion Include="FSPowerPack.Core.Community" Version="3.0.0.0" />
+    <PackageVersion Include="ILRepack" Version="2.0.18" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

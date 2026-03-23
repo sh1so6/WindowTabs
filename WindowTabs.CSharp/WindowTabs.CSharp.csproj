@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <RootNamespace>WindowTabs.CSharp</RootNamespace>
+    <AssemblyName>WindowTabs.CSharp</AssemblyName>
+    <ApplicationIcon>..\WtProgram\Resources\Bemo.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Win32\Win32.csproj" />
+    <ProjectReference Include="..\treeviewadv\Aga.Controls\Aga.Controls.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Interop.SHDocVw">
+      <HintPath>..\Interop.SHDocVw.dll</HintPath>
+    </Reference>
+    <Reference Include="Interop.Shell32">
+      <HintPath>..\Interop.Shell32.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="App.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Content Include="..\WtProgram\Language\*.json">
+      <Link>Language\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\WtProgram\Settings\*.json">
+      <Link>Settings\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>
