@@ -133,7 +133,6 @@ type WtServiceProvider() =
     member this.managerView = this.get<IManagerView>()
     member this.filter = this.get<IFilterService>()
     member this.settings = this.get<ISettings>()
-    member this.lm = this.get<ILicenseManager>()
     member this.dragDrop = this.get<IDragDrop>()
     member this.openResource(name) = Assembly.GetEntryAssembly().GetManifestResourceStream(name)
     member this.openIcon(name) = new Icon(this.openResource(name))

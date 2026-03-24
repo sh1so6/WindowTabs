@@ -15,6 +15,8 @@ namespace WindowTabs.CSharp.Services
 
         public SettingsSnapshot Current { get; private set; }
 
+        public event EventHandler Changed;
+
         public void Update(Action<SettingsSnapshot> update)
         {
             if (update == null)
@@ -24,6 +26,13 @@ namespace WindowTabs.CSharp.Services
 
             update(Current);
             store.Save(Current);
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void Reload()
+        {
+            Current = store.Load();
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 }

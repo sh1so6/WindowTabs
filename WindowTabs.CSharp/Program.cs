@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using Microsoft.Extensions.DependencyInjection;
 using WindowTabs.CSharp.Services;
 using WindowTabs.CSharp.UI;
 
@@ -13,27 +14,16 @@ namespace WindowTabs.CSharp
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            var settingsStore = new SettingsStore(isStandalone: false);
-            var settingsSession = new SettingsSession(settingsStore);
-            LocalizationService.Initialize(settingsSession.Current.LanguageName);
-            var filterService = new FilterService(settingsSession, new NullProgramRefresher());
-            var launcherService = new LauncherService();
-            var launchSupport = new NewWindowLaunchSupport();
-            var pendingLaunchTracker = new PendingWindowLaunchTracker();
-            var processSettingsService = new ProcessSettingsService(settingsSession, settingsStore);
-            var desktopSnapshotService = new DesktopSnapshotService();
-            var desktopPlannerService = new DesktopPlannerService(filterService, launcherService, pendingLaunchTracker);
+            using var serviceProvider = new ServiceCollection()
+                .AddWindowTabsMigrationServices()
+                .BuildServiceProvider();
 
-            Application.Run(new MigrationShellForm(
-                settingsStore,
-                settingsSession,
-                filterService,
-                launcherService,
-                launchSupport,
-                pendingLaunchTracker,
-                processSettingsService,
-                desktopSnapshotService,
-                desktopPlannerService));
+            serviceProvider.GetRequiredService<AppBootstrapper>().Initialize();
+
+            using (var form = serviceProvider.GetRequiredService<MigrationShellForm>())
+            {
+                Application.Run(form);
+            }
         }
     }
 }

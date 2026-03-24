@@ -226,8 +226,6 @@ type Settings(isStandAlone) as this =
                         includedPaths = Set2(settingsJson.getStringArray("IncludedPaths").def(List2()))
                         excludedPaths = Set2(settingsJson.getStringArray("ExcludedPaths").def(List2()))
                         autoGroupingPaths = Set2(settingsJson.getStringArray("AutoGroupingPaths").def(List2()))
-                        licenseKey = settingsJson.getString("LicenseKey").def("")
-                        ticket = settingsJson.getString("Ticket")
                         runAtStartup = settingsJson.getBool("RunAtStartup").def(hasExistingSettings.not)
                         hideInactiveTabs = settingsJson.getBool("HideInactiveTabs").def(false)
                         enableTabbingByDefault = settingsJson.getBool("EnableTabbingByDefault").def(hasExistingSettings.not)
@@ -286,8 +284,6 @@ type Settings(isStandAlone) as this =
                         includedPaths = Set2(List2())
                         excludedPaths = Set2(List2())
                         autoGroupingPaths = Set2(List2())
-                        licenseKey = ""
-                        ticket = None
                         runAtStartup = false
                         hideInactiveTabs = false
                         enableTabbingByDefault = true
@@ -309,8 +305,8 @@ type Settings(isStandAlone) as this =
         and set(settings) =
             let settingsJson = this.settingsJson
             settingsJson.setString("Version", settings.version)
-            settingsJson.setString("LicenseKey", settings.licenseKey)
-            settings.ticket.iter <| fun ticket -> settingsJson.setString("Ticket", ticket)
+            settingsJson.Remove("LicenseKey").ignore
+            settingsJson.Remove("Ticket").ignore
             settingsJson.setBool("RunAtStartup", settings.runAtStartup)
             settingsJson.setBool("HideInactiveTabs", settings.hideInactiveTabs)
             settingsJson.setBool("EnableTabbingByDefault", settings.enableTabbingByDefault)

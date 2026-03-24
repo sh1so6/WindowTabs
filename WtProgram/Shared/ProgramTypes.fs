@@ -18,8 +18,6 @@ type IServiceAsyncResult =
     abstract member onCompleted : (obj -> unit) -> unit
 
 type SettingsRec = {
-    licenseKey: string
-    ticket: string option
     includedPaths: Set2<string>
     excludedPaths: Set2<string>
     autoGroupingPaths : Set2<string>
@@ -37,11 +35,6 @@ type SettingsRec = {
     snapTabHeightMargin: bool
     }
 
-type ILicenseManager =
-    abstract member isLicensed : bool
-    abstract member licenseKey : string with get,set
-    abstract member setTicketString : string -> unit
-
 type ISettings =
     abstract member setValue: (string * obj) -> unit
     abstract member getValue: string -> obj
@@ -58,7 +51,6 @@ type IFilterService =
 
 type SettingsViewType =
     | ProgramSettings
-    | LicenseSettings
     | AppearanceSettings
     | DiagnosticsSettings
     | LayoutSettings

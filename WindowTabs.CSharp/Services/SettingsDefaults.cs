@@ -13,6 +13,7 @@ namespace WindowTabs.CSharp.Services
                 HideInactiveTabs = false,
                 EnableCtrlNumberHotKey = false,
                 EnableHoverActivate = false,
+                IsDisabled = false,
                 TabPositionByDefault = "TopRight",
                 HideTabsWhenDownByDefault = "never",
                 HideTabsDelayMilliseconds = 3000,

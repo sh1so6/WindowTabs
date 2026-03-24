@@ -42,13 +42,12 @@ namespace WindowTabs.CSharp.Services
                 var root = JsoncHelper.ParseObject(File.ReadAllText(SettingsPath));
                 var settings = SettingsDefaults.Create(hasExistingSettings);
                 settings.Version = GetString(root, "Version") ?? string.Empty;
-                settings.LicenseKey = GetString(root, "LicenseKey") ?? string.Empty;
-                settings.Ticket = GetString(root, "Ticket");
                 settings.RunAtStartup = GetBool(root, "RunAtStartup") ?? settings.RunAtStartup;
                 settings.HideInactiveTabs = GetBool(root, "HideInactiveTabs") ?? settings.HideInactiveTabs;
                 settings.EnableTabbingByDefault = GetBool(root, "EnableTabbingByDefault") ?? settings.EnableTabbingByDefault;
                 settings.EnableCtrlNumberHotKey = GetBool(root, "EnableCtrlNumberHotKey") ?? settings.EnableCtrlNumberHotKey;
                 settings.EnableHoverActivate = GetBool(root, "EnableHoverActivate") ?? settings.EnableHoverActivate;
+                settings.IsDisabled = GetBool(root, "IsDisabled") ?? settings.IsDisabled;
                 settings.TabPositionByDefault = NormalizeTabPosition(GetString(root, "TabPositionByDefault"));
                 settings.HideTabsWhenDownByDefault = NormalizeHideTabsMode(root, settings.HideTabsWhenDownByDefault);
                 settings.HideTabsDelayMilliseconds = GetInt(root, "HideTabsDelayMilliseconds") ?? settings.HideTabsDelayMilliseconds;
@@ -89,12 +88,12 @@ namespace WindowTabs.CSharp.Services
             var root = new JObject
             {
                 ["Version"] = settings.Version,
-                ["LicenseKey"] = settings.LicenseKey,
                 ["RunAtStartup"] = settings.RunAtStartup,
                 ["HideInactiveTabs"] = settings.HideInactiveTabs,
                 ["EnableTabbingByDefault"] = settings.EnableTabbingByDefault,
                 ["EnableCtrlNumberHotKey"] = settings.EnableCtrlNumberHotKey,
                 ["EnableHoverActivate"] = settings.EnableHoverActivate,
+                ["IsDisabled"] = settings.IsDisabled,
                 ["TabPositionByDefault"] = settings.TabPositionByDefault,
                 ["HideTabsWhenDownByDefault"] = settings.HideTabsWhenDownByDefault,
                 ["HideTabsDelayMilliseconds"] = settings.HideTabsDelayMilliseconds,
@@ -106,11 +105,6 @@ namespace WindowTabs.CSharp.Services
                 ["AutoGroupingPaths"] = new JArray(settings.AutoGroupingPaths),
                 ["TabAppearance"] = WriteTabAppearance(settings.TabAppearance)
             };
-
-            if (!string.IsNullOrWhiteSpace(settings.Ticket))
-            {
-                root["Ticket"] = settings.Ticket;
-            }
 
             var directory = Path.GetDirectoryName(SettingsPath);
             if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))

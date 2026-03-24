@@ -4,8 +4,6 @@ namespace WindowTabs.CSharp.Models
 {
     internal sealed class SettingsSnapshot
     {
-        public string LicenseKey { get; set; } = string.Empty;
-        public string Ticket { get; set; }
         public List<string> IncludedPaths { get; set; } = new List<string>();
         public List<string> ExcludedPaths { get; set; } = new List<string>();
         public List<string> AutoGroupingPaths { get; set; } = new List<string>();
@@ -16,6 +14,7 @@ namespace WindowTabs.CSharp.Models
         public bool EnableTabbingByDefault { get; set; }
         public bool EnableCtrlNumberHotKey { get; set; }
         public bool EnableHoverActivate { get; set; }
+        public bool IsDisabled { get; set; }
         public string TabPositionByDefault { get; set; } = "TopRight";
         public string HideTabsWhenDownByDefault { get; set; } = "never";
         public int HideTabsDelayMilliseconds { get; set; } = 3000;

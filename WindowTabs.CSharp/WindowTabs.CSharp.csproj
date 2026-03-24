@@ -10,12 +10,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="UI\LicenseSettingsControl.cs" />
+    <Compile Remove="Services\LegacyLicenseManagerBridge.cs" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\WtProgram\WtProgram.fsproj" />
     <ProjectReference Include="..\Win32\Win32.csproj" />
-    <ProjectReference Include="..\treeviewadv\Aga.Controls\Aga.Controls.Sdk.csproj" />
   </ItemGroup>
 
   <ItemGroup>

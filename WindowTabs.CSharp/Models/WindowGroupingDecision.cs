@@ -8,6 +8,8 @@ namespace WindowTabs.CSharp.Models
 
         public IntPtr? TargetGroupHandle { get; set; }
 
+        public IntPtr? InsertAfterWindowHandle { get; set; }
+
         public GroupAssignmentReason Reason { get; set; }
 
         public bool CreateNewGroup => !TargetGroupHandle.HasValue;

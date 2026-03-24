@@ -20,7 +20,7 @@ module Forms =
         form.ShowDialog(owner).ignore
 
     let showRegister hwnd =
-        Services.managerView.show(SettingsViewType.LicenseSettings)
+        Services.managerView.show(SettingsViewType.ProgramSettings)
          
     let openFeedback() =
         let sInfo = new ProcessStartInfo("https://windowtabs.uservoice.com/")

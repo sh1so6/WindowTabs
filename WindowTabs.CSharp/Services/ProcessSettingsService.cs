@@ -45,6 +45,106 @@ namespace WindowTabs.CSharp.Services
             return new List<string>(paths);
         }
 
+        public bool GetAutoGroupingEnabled(string processPath)
+        {
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return false;
+            }
+
+            foreach (var path in settingsSession.Current.AutoGroupingPaths)
+            {
+                if (string.Equals(path, processPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void SetAutoGroupingEnabled(string processPath, bool enabled)
+        {
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return;
+            }
+
+            settingsSession.Update(snapshot =>
+            {
+                var autoGroupingPaths = new HashSet<string>(snapshot.AutoGroupingPaths, StringComparer.OrdinalIgnoreCase);
+                if (enabled)
+                {
+                    autoGroupingPaths.Add(processPath);
+                }
+                else
+                {
+                    autoGroupingPaths.Remove(processPath);
+                }
+
+                snapshot.AutoGroupingPaths = new List<string>(autoGroupingPaths);
+            });
+        }
+
+        public bool GetCategoryEnabled(string processPath, int categoryNumber)
+        {
+            if (string.IsNullOrWhiteSpace(processPath) || categoryNumber < 1 || categoryNumber > 10)
+            {
+                return false;
+            }
+
+            foreach (var path in ReadStringArray(settingsStore.LoadRawRoot(), GetCategoryKey(categoryNumber)))
+            {
+                if (string.Equals(path, processPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void SetCategoryEnabled(string processPath, int categoryNumber, bool enabled)
+        {
+            if (string.IsNullOrWhiteSpace(processPath) || categoryNumber < 1 || categoryNumber > 10)
+            {
+                return;
+            }
+
+            var root = settingsStore.LoadRawRoot();
+            var categoryKey = GetCategoryKey(categoryNumber);
+            var categoryPaths = new HashSet<string>(ReadStringArray(root, categoryKey), StringComparer.OrdinalIgnoreCase);
+            if (enabled)
+            {
+                categoryPaths.Add(processPath);
+            }
+            else
+            {
+                categoryPaths.Remove(processPath);
+            }
+
+            root[categoryKey] = new JArray(categoryPaths);
+            settingsStore.SaveRawRoot(root);
+        }
+
+        public int GetCategoryForProcess(string processPath)
+        {
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return 0;
+            }
+
+            for (var index = 1; index <= 10; index++)
+            {
+                if (GetCategoryEnabled(processPath, index))
+                {
+                    return index;
+                }
+            }
+
+            return 0;
+        }
+
         public void RemoveProcessSettings(string processPath)
         {
             if (string.IsNullOrWhiteSpace(processPath))
@@ -62,7 +162,7 @@ namespace WindowTabs.CSharp.Services
             var root = settingsStore.LoadRawRoot();
             for (var index = 1; index <= 10; index++)
             {
-                var key = $"Category{index}Paths";
+                var key = GetCategoryKey(index);
                 var filtered = new JArray();
                 foreach (var path in ReadStringArray(root, key))
                 {
@@ -73,6 +173,48 @@ namespace WindowTabs.CSharp.Services
                 }
 
                 root[key] = filtered;
+            }
+
+            settingsStore.SaveRawRoot(root);
+        }
+
+        public bool HasProcessSettings(string processPath)
+        {
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return false;
+            }
+
+            foreach (var configuredPath in GetAllConfiguredProcessPaths())
+            {
+                if (string.Equals(configuredPath, processPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void SetCategoryForProcess(string processPath, int categoryNumber)
+        {
+            if (string.IsNullOrWhiteSpace(processPath))
+            {
+                return;
+            }
+
+            var root = settingsStore.LoadRawRoot();
+            for (var index = 1; index <= 10; index++)
+            {
+                var key = GetCategoryKey(index);
+                var categoryPaths = new HashSet<string>(ReadStringArray(root, key), StringComparer.OrdinalIgnoreCase);
+                categoryPaths.Remove(processPath);
+                if (index == categoryNumber)
+                {
+                    categoryPaths.Add(processPath);
+                }
+
+                root[key] = new JArray(categoryPaths);
             }
 
             settingsStore.SaveRawRoot(root);
@@ -93,6 +235,11 @@ namespace WindowTabs.CSharp.Services
                     yield return value;
                 }
             }
+        }
+
+        private static string GetCategoryKey(int categoryNumber)
+        {
+            return $"Category{categoryNumber}Paths";
         }
     }
 }

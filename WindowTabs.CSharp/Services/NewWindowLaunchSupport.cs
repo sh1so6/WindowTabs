@@ -1,12 +1,20 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
 {
     internal sealed class NewWindowLaunchSupport
     {
+        private readonly ILocalizationContext localizationContext;
+
+        public NewWindowLaunchSupport(ILocalizationContext localizationContext)
+        {
+            this.localizationContext = localizationContext ?? throw new ArgumentNullException(nameof(localizationContext));
+        }
+
         public LaunchCommand ResolveLaunchCommand(string processPath)
         {
             if (string.IsNullOrWhiteSpace(processPath))
@@ -35,7 +43,7 @@ namespace WindowTabs.CSharp.Services
 
             return "Failed to start new tab:"
                    + Environment.NewLine
-                   + LocalizationService.GetString("NewTab")
+                   + localizationContext.GetString("NewTab")
                    + Environment.NewLine
                    + Environment.NewLine
                    + "Path: " + processPath
@@ -54,10 +62,10 @@ namespace WindowTabs.CSharp.Services
             return null;
         }
 
-        private static string BuildUwpLaunchFailureMessage(string processPath)
+        private string BuildUwpLaunchFailureMessage(string processPath)
         {
             var appName = Path.GetFileNameWithoutExtension(processPath);
-            if (string.Equals(LocalizationService.CurrentLanguage, "Japanese", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(localizationContext.CurrentLanguage, "Japanese", StringComparison.OrdinalIgnoreCase))
             {
                 return "新規ウィンドウの起動に失敗しました。"
                        + Environment.NewLine

@@ -59,6 +59,11 @@ namespace WindowTabs.CSharp.Services
             return windows;
         }
 
+        public IntPtr GetForegroundWindowHandle()
+        {
+            return WinUserApi.GetForegroundWindow();
+        }
+
         public WindowSnapshot CreateWindowSnapshot(IntPtr handle)
         {
             var processId = Win32Helper.GetWindowProcessId(handle);
