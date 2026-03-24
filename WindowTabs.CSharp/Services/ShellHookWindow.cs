@@ -1,6 +1,5 @@
 using System;
 using System.Windows.Forms;
-using Bemo;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
@@ -14,13 +13,13 @@ namespace WindowTabs.CSharp.Services
         public ShellHookWindow(Action<IntPtr, ShellEventKind> eventHandler)
         {
             this.eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
-            shellHookMessage = WinUserApi.RegisterWindowMessage("SHELLHOOK");
+            shellHookMessage = NativeWindowHookApi.RegisterWindowMessage("SHELLHOOK");
             CreateHandle(new CreateParams
             {
                 Caption = "WindowTabs.CSharp.ShellHookWindow"
             });
 
-            WinUserApi.RegisterShellHookWindow(Handle);
+            NativeWindowHookApi.RegisterShellHookWindow(Handle);
         }
 
         protected override void WndProc(ref Message m)
@@ -52,13 +51,13 @@ namespace WindowTabs.CSharp.Services
         {
             switch (shellEventCode)
             {
-                case WindowsHookShellEvents.HSHELL_WINDOWCREATED:
+                case NativeWindowHookApi.HshellWindowCreated:
                     return ShellEventKind.WindowCreated;
-                case WindowsHookShellEvents.HSHELL_WINDOWDESTROYED:
+                case NativeWindowHookApi.HshellWindowDestroyed:
                     return ShellEventKind.WindowDestroyed;
-                case WindowsHookShellEvents.HSHELL_WINDOWACTIVATED:
+                case NativeWindowHookApi.HshellWindowActivated:
                     return ShellEventKind.WindowActivated;
-                case WindowsHookShellEvents.HSHELL_RUDEAPPACTIVATED:
+                case NativeWindowHookApi.HshellRudeAppActivated:
                     return ShellEventKind.RudeAppActivated;
                 default:
                     return null;

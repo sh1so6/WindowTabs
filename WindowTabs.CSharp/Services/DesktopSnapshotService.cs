@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Text;
 using System.Windows.Forms;
-using Bemo;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
@@ -51,7 +50,7 @@ namespace WindowTabs.CSharp.Services
         public IReadOnlyList<WindowSnapshot> EnumerateWindowsInZOrder()
         {
             var windows = new List<WindowSnapshot>();
-            foreach (var handle in Win32Helper.GetWindowsInZOrder())
+            foreach (var handle in NativeWindowApi.EnumerateWindowsInZOrder())
             {
                 windows.Add(CreateWindowSnapshot(handle));
             }
@@ -66,25 +65,25 @@ namespace WindowTabs.CSharp.Services
 
         public WindowSnapshot CreateWindowSnapshot(IntPtr handle)
         {
-            var processId = Win32Helper.GetWindowProcessId(handle);
-            var parentHandle = WinUserApi.GetWindowLong(handle, WindowLongFieldOffset.GWL_HWNDPARENT);
-            var extendedStyle = WinUserApi.GetWindowLong(handle, WindowLongFieldOffset.GWL_EXSTYLE);
+            var processId = NativeWindowApi.GetWindowProcessId(handle);
+            var parentHandle = NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlHwndParent);
+            var extendedStyle = NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlExStyle);
 
             return new WindowSnapshot
             {
                 Handle = handle,
                 Process = CreateProcessSnapshot(processId),
-                Style = WinUserApi.GetWindowLong(handle, WindowLongFieldOffset.GWL_STYLE).ToInt64(),
+                Style = NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlStyle).ToInt64(),
                 ExtendedStyle = extendedStyle.ToInt64(),
-                IsWindow = WinUserApi.IsWindow(handle),
-                IsVisibleOnScreen = WinUserApi.IsWindowVisible(handle) && !IsCloaked(handle),
+                IsWindow = NativeWindowApi.IsWindowHandle(handle),
+                IsVisibleOnScreen = NativeWindowApi.IsWindowVisibleOnDesktop(handle) && !IsCloaked(handle),
                 IsOnCurrentVirtualDesktop = !IsCloaked(handle),
-                IsTopMost = (extendedStyle.ToInt64() & WindowsExtendedStyles.WS_EX_TOPMOST) == WindowsExtendedStyles.WS_EX_TOPMOST,
-                IsMinimized = WinUserApi.IsIconic(handle),
-                ClassName = Win32Helper.GetClassName(handle),
-                Text = Win32Helper.GetWindowText(handle),
-                Bounds = ToRectValue(Win32Helper.GetWindowRectangle(handle)),
-                ParentBounds = parentHandle == IntPtr.Zero ? new RectValue() : ToRectValue(Win32Helper.GetWindowRectangle(parentHandle))
+                IsTopMost = (extendedStyle.ToInt64() & NativeWindowApi.WsExTopMost) == NativeWindowApi.WsExTopMost,
+                IsMinimized = NativeWindowApi.IsWindowMinimized(handle),
+                ClassName = NativeWindowApi.GetWindowClassName(handle),
+                Text = NativeWindowApi.GetWindowTextValue(handle),
+                Bounds = ToRectValue(NativeWindowApi.GetWindowRectangle(handle)),
+                ParentBounds = parentHandle == IntPtr.Zero ? new RectValue() : ToRectValue(NativeWindowApi.GetWindowRectangle(parentHandle))
             };
         }
 
@@ -93,13 +92,10 @@ namespace WindowTabs.CSharp.Services
             var snapshot = new ProcessSnapshot
             {
                 ProcessId = processId,
-                IsCurrentProcess = processId == WinBaseApi.GetCurrentProcessId()
+                IsCurrentProcess = processId == NativeProcessApi.GetCurrentProcessIdValue()
             };
 
-            var processHandle = WinBaseApi.OpenProcess(
-                ProcessAccessRights.PROCESS_QUERY_LIMITED_INFORMATION | ProcessAccessRights.PROCESS_QUERY_INFORMATION,
-                false,
-                processId);
+            var processHandle = NativeProcessApi.OpenQueryProcessHandle(processId);
 
             snapshot.CanQueryProcess = processHandle != IntPtr.Zero;
             if (!snapshot.CanQueryProcess)
@@ -109,16 +105,14 @@ namespace WindowTabs.CSharp.Services
 
             try
             {
-                var builder = new StringBuilder(1024);
-                Psapi.GetProcessImageFileName(processHandle, builder, builder.Capacity);
-                var kernelPath = builder.ToString();
+                var kernelPath = NativeProcessApi.GetProcessImagePath(processHandle);
                 snapshot.ProcessPath = NormalizeProcessPath(kernelPath);
                 snapshot.ExeName = System.IO.Path.GetFileName(snapshot.ProcessPath)?.ToLowerInvariant() ?? string.Empty;
                 return snapshot;
             }
             finally
             {
-                WinBaseApi.CloseHandle(processHandle);
+                NativeProcessApi.CloseHandleValue(processHandle);
             }
         }
 
@@ -144,8 +138,7 @@ namespace WindowTabs.CSharp.Services
         {
             try
             {
-                var result = DwmApi.DwmGetWindowAttribute(handle, DWMWINDOWATTRIBUTE.DWMWA_CLOAKED, out var cloaked, sizeof(int));
-                return result == 0 && cloaked != 0;
+                return NativeDwmApi.IsWindowCloaked(handle);
             }
             catch
             {
@@ -170,7 +163,7 @@ namespace WindowTabs.CSharp.Services
             for (var drive = 'A'; drive <= 'Z'; drive++)
             {
                 var builder = new StringBuilder(512);
-                if (!WinBaseApi.QueryDosDevice(drive + ":", builder, builder.Capacity))
+                if (!NativeProcessApi.TryQueryDosDevice(drive + ":", builder))
                 {
                     continue;
                 }

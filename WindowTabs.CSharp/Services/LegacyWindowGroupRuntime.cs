@@ -74,7 +74,7 @@ namespace WindowTabs.CSharp.Services
             var targetHandle = handles[index];
             if (targetHandle != IntPtr.Zero)
             {
-                WinUserApi.SetForegroundWindow(targetHandle);
+                NativeWindowApi.ActivateWindow(targetHandle);
             }
         }
     }

@@ -7,6 +7,8 @@
     <RootNamespace>WindowTabs.CSharp</RootNamespace>
     <AssemblyName>WindowTabs.CSharp</AssemblyName>
     <ApplicationIcon>..\WtProgram\Resources\Bemo.ico</ApplicationIcon>
+    <LangVersion>latest</LangVersion>
+    <EnableLegacyRuntime>true</EnableLegacyRuntime>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +20,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WtProgram\WtProgram.fsproj" />
-    <ProjectReference Include="..\Win32\Win32.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(EnableLegacyRuntime)' != 'true'">
+    <Compile Remove="Services\BemoSettingsValueConverter.cs" />
+    <Compile Remove="Services\FSharpListAdapter.cs" />
+    <Compile Remove="Services\Legacy*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(EnableLegacyRuntime)' != 'true'">
+    <ProjectReference Remove="..\WtProgram\WtProgram.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

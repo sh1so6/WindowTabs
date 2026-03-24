@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using Bemo;
 using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
@@ -10,7 +9,7 @@ namespace WindowTabs.CSharp.Services
         private readonly SettingsSession settingsSession;
         private readonly AppBehaviorState appBehaviorState;
         private readonly GroupWindowActivationService groupWindowActivationService;
-        private readonly HOOKPROC hookProc;
+        private readonly NativeKeyboardApi.HookProc hookProc;
         private IntPtr hookHandle;
         private bool initialized;
         private bool disposed;
@@ -34,11 +33,7 @@ namespace WindowTabs.CSharp.Services
             }
 
             initialized = true;
-            hookHandle = WinUserApi.SetWindowsHookEx(
-                WindowHookTypes.WH_KEYBOARD_LL,
-                hookProc,
-                WinBaseApi.GetModuleHandle(IntPtr.Zero),
-                0);
+            hookHandle = NativeKeyboardApi.SetLowLevelKeyboardHook(hookProc);
         }
 
         public void Dispose()
@@ -51,7 +46,7 @@ namespace WindowTabs.CSharp.Services
             disposed = true;
             if (hookHandle != IntPtr.Zero)
             {
-                WinUserApi.UnhookWindowsHookEx(hookHandle);
+                NativeKeyboardApi.UnhookWindowsHook(hookHandle);
                 hookHandle = IntPtr.Zero;
             }
         }
@@ -63,11 +58,11 @@ namespace WindowTabs.CSharp.Services
                 if (code >= 0
                     && !appBehaviorState.IsDisabled
                     && settingsSession.Current.EnableCtrlNumberHotKey
-                    && (wParam.ToInt32() == WindowMessages.WM_KEYDOWN || wParam.ToInt32() == WindowMessages.WM_SYSKEYDOWN))
+                    && (wParam.ToInt32() == NativeKeyboardApi.WmKeyDown || wParam.ToInt32() == NativeKeyboardApi.WmSysKeyDown))
                 {
-                    var data = Marshal.PtrToStructure<KBDLLHOOKSTRUCT>(lParam);
-                    var tabIndex = TryGetTabIndex(data.vkCode);
-                    if (tabIndex.HasValue && Win32Helper.IsKeyPressed(VirtualKeyCodes.VK_CONTROL))
+                    var data = Marshal.PtrToStructure<NativeKeyboardApi.KeyboardHookStruct>(lParam);
+                    var tabIndex = TryGetTabIndex(data.VirtualKeyCode);
+                    if (tabIndex.HasValue && NativeKeyboardApi.IsKeyPressed(NativeKeyboardApi.VkControl))
                     {
                         groupWindowActivationService.TryActivateForegroundIndex(tabIndex.Value);
                     }
@@ -77,7 +72,7 @@ namespace WindowTabs.CSharp.Services
             {
             }
 
-            return WinUserApi.CallNextHookEx(hookHandle, code, wParam, lParam);
+            return NativeKeyboardApi.CallNextHook(hookHandle, code, wParam, lParam);
         }
 
         private static int? TryGetTabIndex(int virtualKey)

@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using Bemo;
-using Bemo.Win32;
 using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
@@ -81,15 +79,15 @@ namespace WindowTabs.CSharp.Services
                     continue;
                 }
 
-                var shortcut = new HotKeyShortcut
-                {
-                    HotKeyControlCode = unchecked((short)shortcutCode)
-                };
+                NativeKeyboardApi.DecodeHotKeyControlCode(
+                    unchecked((short)shortcutCode),
+                    out var modifiers,
+                    out var virtualKey);
 
                 hotKeyWindow.Register(
                     pair.Value.Id,
-                    shortcut.RegisterHotKeyModifierFlags,
-                    shortcut.RegisterHotKeyVirtualKeyCode);
+                    modifiers,
+                    virtualKey);
             }
         }
 
@@ -154,15 +152,15 @@ namespace WindowTabs.CSharp.Services
                     return;
                 }
 
-                var finalModifiers = modifiers | HotKeyConstants.MOD_NOREPEAT;
-                WinUserApi.RegisterHotKey(Handle, id, finalModifiers, virtualKey);
+                var finalModifiers = modifiers | NativeKeyboardApi.ModNoRepeat;
+                NativeKeyboardApi.RegisterHotKey(Handle, id, finalModifiers, virtualKey);
             }
 
             public void Unregister(int id)
             {
                 if (Handle != IntPtr.Zero)
                 {
-                    WinUserApi.UnregisterHotKey(Handle, id);
+                    NativeKeyboardApi.UnregisterHotKey(Handle, id);
                 }
             }
 
@@ -179,7 +177,7 @@ namespace WindowTabs.CSharp.Services
 
             protected override void WndProc(ref Message m)
             {
-                if (m.Msg == WindowMessages.WM_HOTKEY)
+                if (m.Msg == NativeKeyboardApi.WmHotKey)
                 {
                     onHotKey(m.WParam.ToInt32());
                 }

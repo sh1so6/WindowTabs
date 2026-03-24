@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
-using Bemo;
 using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
@@ -73,7 +72,7 @@ namespace WindowTabs.CSharp.Services
                 }
 
                 var firstWindowHandle = runtimeGroup.WindowHandles[0];
-                var placement = ToPlacementValue(Win32Helper.GetWindowPlacement(firstWindowHandle));
+                var placement = NativeWindowApi.GetWindowPlacementValue(firstWindowHandle);
                 var groupLayout = new WorkspaceGroupLayout
                 {
                     Name = "Group " + (groupIndex + 1),
@@ -136,7 +135,7 @@ namespace WindowTabs.CSharp.Services
                     foreach (var handle in handles)
                     {
                         desktopRuntime.RemoveWindow(handle);
-                        WinUserApi.ShowWindow(handle, ShowWindowCommands.SW_RESTORE);
+                        NativeWindowApi.RestoreWindow(handle);
                         ApplyPlacement(handle, groupLayout.Placement);
                     }
 
@@ -218,54 +217,12 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
-            var nativePlacement = new WINDOWPLACEMENT
-            {
-                length = System.Runtime.InteropServices.Marshal.SizeOf(typeof(WINDOWPLACEMENT)),
-                flags = placement.Flags,
-                showCmd = placement.ShowCommand,
-                ptMaxPosition = new POINT(placement.MaxPosition.X, placement.MaxPosition.Y),
-                ptMinPosition = new POINT(placement.MinPosition.X, placement.MinPosition.Y),
-                rcNormalPosition = RECT.FromRectangle(new System.Drawing.Rectangle(
-                    placement.NormalPosition.X,
-                    placement.NormalPosition.Y,
-                    placement.NormalPosition.Width,
-                    placement.NormalPosition.Height))
-            };
-
-            WinUserApi.SetWindowPlacement(handle, ref nativePlacement);
+            NativeWindowApi.SetWindowPlacementValue(handle, placement);
         }
 
         private static void ApplyZOrder(IReadOnlyList<IntPtr> handles)
         {
-            if (handles == null || handles.Count < 2)
-            {
-                return;
-            }
-
-            var deferHandle = WinUserApi.BeginDeferWindowPos(handles.Count);
-            if (deferHandle == IntPtr.Zero)
-            {
-                return;
-            }
-
-            var current = deferHandle;
-            for (var index = 1; index < handles.Count; index++)
-            {
-                current = WinUserApi.DeferWindowPos(
-                    current,
-                    handles[index],
-                    handles[index - 1],
-                    0,
-                    0,
-                    0,
-                    0,
-                    SetWindowPosFlags.SWP_NOOWNERZORDER |
-                    SetWindowPosFlags.SWP_NOMOVE |
-                    SetWindowPosFlags.SWP_NOSIZE |
-                    SetWindowPosFlags.SWP_NOACTIVATE);
-            }
-
-            WinUserApi.EndDeferWindowPos(current);
+            NativeWindowApi.ApplyZOrder(handles);
         }
 
         private void SaveLayouts(IReadOnlyList<WorkspaceLayout> layouts)
@@ -364,7 +321,7 @@ namespace WindowTabs.CSharp.Services
             return new WindowPlacementValue
             {
                 Flags = 0,
-                ShowCommand = placement["showCmd"]?.Value<int>() ?? ShowWindowCommands.SW_RESTORE,
+                ShowCommand = placement["showCmd"]?.Value<int>() ?? NativeWindowApi.SwRestore,
                 MaxPosition = DeserializePoint(placement["ptMaxPosition"] as JObject),
                 MinPosition = DeserializePoint(placement["ptMinPosition"] as JObject),
                 NormalPosition = DeserializeRect(placement["rcNormalPosition"] as JObject)
@@ -412,30 +369,5 @@ namespace WindowTabs.CSharp.Services
             };
         }
 
-        private static WindowPlacementValue ToPlacementValue(WINDOWPLACEMENT placement)
-        {
-            return new WindowPlacementValue
-            {
-                Flags = placement.flags,
-                ShowCommand = placement.showCmd,
-                MaxPosition = new PointValue
-                {
-                    X = placement.ptMaxPosition.X,
-                    Y = placement.ptMaxPosition.Y
-                },
-                MinPosition = new PointValue
-                {
-                    X = placement.ptMinPosition.X,
-                    Y = placement.ptMinPosition.Y
-                },
-                NormalPosition = new RectValue
-                {
-                    X = placement.rcNormalPosition.Left,
-                    Y = placement.rcNormalPosition.Top,
-                    Width = placement.rcNormalPosition.Right - placement.rcNormalPosition.Left,
-                    Height = placement.rcNormalPosition.Bottom - placement.rcNormalPosition.Top
-                }
-            };
-        }
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using Bemo;
 using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
@@ -36,14 +35,14 @@ namespace WindowTabs.CSharp.Services
                 screenPoint.X - dragInfo.ImageOffset.X + previewWindowOffset.X,
                 screenPoint.Y - dragInfo.ImageOffset.Y + previewWindowOffset.Y);
 
-            windowPoint = Win32Helper.ScreenToWorkspace(windowPoint);
+            windowPoint = NativeWindowApi.ScreenToWorkspace(windowPoint);
 
-            if (WinUserApi.IsIconic(handle) || WinUserApi.IsZoomed(handle))
+            if (NativeWindowApi.IsWindowMinimized(handle) || NativeWindowApi.IsWindowMaximized(handle))
             {
-                WinUserApi.ShowWindow(handle, ShowWindowCommands.SW_RESTORE);
+                NativeWindowApi.RestoreWindow(handle);
             }
 
-            var bounds = Win32Helper.GetWindowRectangle(handle);
+            var bounds = NativeWindowApi.GetWindowRectangle(handle);
             var screen = Screen.FromPoint(new Point(
                 windowPoint.X + (bounds.Width / 2),
                 windowPoint.Y + (bounds.Height / 2)));
@@ -56,25 +55,25 @@ namespace WindowTabs.CSharp.Services
 
             if (bounds.Width > workingArea.Width || bounds.Height > workingArea.Height)
             {
-                WinUserApi.SetWindowPos(
+                NativeWindowApi.SetWindowPosition(
                     handle,
-                    WindowHandleTypes.HWND_TOP,
+                    NativeWindowApi.HwndTop,
                     adjustedX,
                     adjustedY,
                     finalWidth,
                     finalHeight,
-                    SetWindowPosFlags.SWP_NOACTIVATE | SetWindowPosFlags.SWP_NOZORDER);
+                    NativeWindowApi.SwpNoActivate | NativeWindowApi.SwpNoZOrder);
             }
             else
             {
-                WinUserApi.SetWindowPos(
+                NativeWindowApi.SetWindowPosition(
                     handle,
-                    WindowHandleTypes.HWND_TOP,
+                    NativeWindowApi.HwndTop,
                     adjustedX,
                     adjustedY,
                     0,
                     0,
-                    SetWindowPosFlags.SWP_NOSIZE | SetWindowPosFlags.SWP_NOACTIVATE | SetWindowPosFlags.SWP_NOZORDER);
+                    NativeWindowApi.SwpNoSize | NativeWindowApi.SwpNoActivate | NativeWindowApi.SwpNoZOrder);
             }
 
             desktopSessionCoordinator.MarkDropped(handle);

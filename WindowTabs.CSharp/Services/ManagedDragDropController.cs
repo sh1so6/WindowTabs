@@ -4,12 +4,6 @@ using System.Drawing;
 using System.Windows.Forms;
 using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
-using BemoPoint = Bemo.POINT;
-using BemoVirtualKeyCodes = Bemo.VirtualKeyCodes;
-using BemoWin32Helper = Bemo.Win32Helper;
-using BemoWinUserApi = Bemo.WinUserApi;
-using BemoWindowMessages = Bemo.WindowMessages;
-using BemoWindowsExtendedStyles = Bemo.WindowsExtendedStyles;
 
 namespace WindowTabs.CSharp.Services
 {
@@ -220,7 +214,7 @@ namespace WindowTabs.CSharp.Services
 
                 switch (message)
                 {
-                    case BemoWindowMessages.WM_MOUSEMOVE:
+                    case NativeWindowApi.WmMouseMove:
                         if (!IsLeftMouseButtonDown())
                         {
                             CompleteDrag(point);
@@ -229,8 +223,8 @@ namespace WindowTabs.CSharp.Services
 
                         state?.OnMouseMove(point);
                         break;
-                    case BemoWindowMessages.WM_MOUSELEAVE:
-                    case BemoWindowMessages.WM_LBUTTONUP:
+                    case NativeWindowApi.WmMouseLeave:
+                    case NativeWindowApi.WmLButtonUp:
                         CompleteDrag(point);
                         break;
                 }
@@ -274,7 +268,7 @@ namespace WindowTabs.CSharp.Services
 
             private void MoveWithinCapturedTarget(IDragDropTarget target, IntPtr hwnd, Point screenPoint)
             {
-                var dragBounds = BemoWin32Helper.GetWindowRectangle(hwnd);
+                var dragBounds = NativeWindowApi.GetWindowRectangle(hwnd);
                 dragBounds.Inflate(0, 20);
                 if (dragBounds.Contains(screenPoint))
                 {
@@ -283,7 +277,7 @@ namespace WindowTabs.CSharp.Services
                 }
 
                 target.OnDragExit();
-                var nextTarget = BemoWin32Helper.GetTopLevelWindowFromPoint(screenPoint);
+                var nextTarget = NativeWindowApi.GetTopLevelWindowFromPoint(screenPoint);
                 if (targets.ContainsKey(nextTarget))
                 {
                     EnterTarget(nextTarget, screenPoint, false);
@@ -311,7 +305,7 @@ namespace WindowTabs.CSharp.Services
                 }
 
                 previewWindow.SetVisible(false);
-                var targetHwnd = BemoWin32Helper.GetTopLevelWindowFromPoint(screenPoint);
+                var targetHwnd = NativeWindowApi.GetTopLevelWindowFromPoint(screenPoint);
                 if (targets.ContainsKey(targetHwnd))
                 {
                     EnterTarget(targetHwnd, screenPoint, false);
@@ -388,18 +382,17 @@ namespace WindowTabs.CSharp.Services
 
             private static Bitmap ScalePreviewImage(Bitmap image)
             {
-                return BemoWin32Helper.ScaleImage(image, 2.0, 2.0);
+                return NativeWindowApi.ScaleImage(image, 2.0, 2.0);
             }
 
             private static bool IsLeftMouseButtonDown()
             {
-                return BemoWin32Helper.IsKeyPressed(BemoVirtualKeyCodes.VK_LBUTTON);
+                return NativeKeyboardApi.IsLeftMouseButtonPressed();
             }
 
             private static Point ScreenToClient(IntPtr hwnd, Point point)
             {
-                var nativePoint = BemoWin32Helper.ScreenToClient(hwnd, BemoPoint.FromPoint(point));
-                return nativePoint.ToPoint();
+                return NativeWindowApi.ScreenToClient(hwnd, point);
             }
         }
 
@@ -459,8 +452,7 @@ namespace WindowTabs.CSharp.Services
 
             public void Drop(object data, Point screenPoint)
             {
-                var nativePoint = BemoWin32Helper.ScreenToClient(targetWindowHandle, BemoPoint.FromPoint(screenPoint));
-                target.OnDrop(data, nativePoint.ToPoint());
+                target.OnDrop(data, NativeWindowApi.ScreenToClient(targetWindowHandle, screenPoint));
             }
 
             public void Dispose()
@@ -505,11 +497,11 @@ namespace WindowTabs.CSharp.Services
                 });
             }
 
-            public bool HasCapture => BemoWinUserApi.GetCapture() == Handle;
+            public bool HasCapture => NativeWindowApi.GetCaptureHandle() == Handle;
 
             public void SetCapture()
             {
-                BemoWinUserApi.SetCapture(Handle);
+                NativeWindowApi.SetCaptureHandle(Handle);
             }
 
             public void Dispose()
@@ -522,7 +514,7 @@ namespace WindowTabs.CSharp.Services
                 isDisposed = true;
                 if (HasCapture)
                 {
-                    BemoWinUserApi.ReleaseCapture();
+                    NativeWindowApi.ReleaseCaptureHandle();
                 }
 
                 DestroyHandle();
@@ -567,7 +559,7 @@ namespace WindowTabs.CSharp.Services
                 get
                 {
                     var createParams = base.CreateParams;
-                    createParams.ExStyle |= BemoWindowsExtendedStyles.WS_EX_TOOLWINDOW;
+                    createParams.ExStyle |= NativeWindowApi.WsExToolWindow;
                     return createParams;
                 }
             }

@@ -5,9 +5,6 @@ using System.Linq;
 using System.Windows.Forms;
 using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
-using BemoSystemMenuCommandValues = Bemo.SystemMenuCommandValues;
-using BemoWinUserApi = Bemo.WinUserApi;
-using BemoWindowMessages = Bemo.WindowMessages;
 
 namespace WindowTabs.CSharp.Services
 {

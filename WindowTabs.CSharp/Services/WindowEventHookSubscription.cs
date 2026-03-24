@@ -1,5 +1,4 @@
 using System;
-using Bemo;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
@@ -8,7 +7,7 @@ namespace WindowTabs.CSharp.Services
     {
         private readonly IntPtr windowHandle;
         private readonly Action<IntPtr, WinObjectEventKind> eventHandler;
-        private readonly WINEVENTPROC winEventProc;
+        private readonly NativeWindowHookApi.WinEventProc winEventProc;
         private readonly IntPtr showHook;
         private readonly IntPtr hideHook;
         private bool isDisposed;
@@ -18,22 +17,14 @@ namespace WindowTabs.CSharp.Services
             this.windowHandle = windowHandle;
             this.eventHandler = eventHandler ?? throw new ArgumentNullException(nameof(eventHandler));
             winEventProc = OnWinEvent;
-            showHook = WinUserApi.SetWinEventHook(
-                (int)WinObjectEventKind.ObjectShow,
-                (int)WinObjectEventKind.ObjectShow,
-                IntPtr.Zero,
-                winEventProc,
-                0,
-                0,
-                0);
-            hideHook = WinUserApi.SetWinEventHook(
-                (int)WinObjectEventKind.ObjectHide,
-                (int)WinObjectEventKind.ObjectHide,
-                IntPtr.Zero,
-                winEventProc,
-                0,
-                0,
-                0);
+            showHook = NativeWindowHookApi.SetWinEventHook(
+                (uint)WinObjectEventKind.ObjectShow,
+                (uint)WinObjectEventKind.ObjectShow,
+                winEventProc);
+            hideHook = NativeWindowHookApi.SetWinEventHook(
+                (uint)WinObjectEventKind.ObjectHide,
+                (uint)WinObjectEventKind.ObjectHide,
+                winEventProc);
         }
 
         public void Dispose()
@@ -46,23 +37,23 @@ namespace WindowTabs.CSharp.Services
             isDisposed = true;
             if (showHook != IntPtr.Zero)
             {
-                WinUserApi.UnhookWinEvent(showHook);
+                NativeWindowHookApi.UnhookWinEvent(showHook);
             }
 
             if (hideHook != IntPtr.Zero)
             {
-                WinUserApi.UnhookWinEvent(hideHook);
+                NativeWindowHookApi.UnhookWinEvent(hideHook);
             }
         }
 
         private void OnWinEvent(
             IntPtr hWinEventHook,
-            int evt,
+            uint evt,
             IntPtr hwnd,
             IntPtr idObject,
             IntPtr idChild,
-            int dwEventThread,
-            int dwmsEventTime)
+            uint dwEventThread,
+            uint dwmsEventTime)
         {
             if (hwnd != windowHandle || idObject != IntPtr.Zero)
             {

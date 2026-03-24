@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Bemo;
 using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
@@ -43,12 +42,12 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
 
-            var style = WindowsStyles.WS_OVERLAPPEDWINDOW
-                        & ~WindowsStyles.WS_CAPTION
-                        & ~WindowsStyles.WS_THICKFRAME
-                        & ~WindowsStyles.WS_SYSMENU;
+            var style = NativeWindowApi.WsOverlappedWindow
+                        & ~NativeWindowApi.WsCaption
+                        & ~NativeWindowApi.WsThickFrame
+                        & ~NativeWindowApi.WsSysMenu;
 
-            return (window.ExtendedStyle & WindowsExtendedStyles.WS_EX_TOOLWINDOW) == 0
+            return (window.ExtendedStyle & NativeWindowApi.WsExToolWindow) == 0
                    && (window.Style & style) == style;
         }
 
