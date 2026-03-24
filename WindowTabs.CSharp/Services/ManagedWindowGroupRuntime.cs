@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Bemo;
 using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
@@ -65,7 +64,7 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
-            var foregroundHandle = WinUserApi.GetForegroundWindow();
+            var foregroundHandle = NativeWindowApi.GetForegroundWindowHandle();
             var currentIndex = windowHandles.IndexOf(foregroundHandle);
             if (currentIndex < 0)
             {
@@ -82,7 +81,7 @@ namespace WindowTabs.CSharp.Services
             var targetHandle = windowHandles[targetIndex];
             if (targetHandle != IntPtr.Zero)
             {
-                WinUserApi.SetForegroundWindow(targetHandle);
+                NativeWindowApi.ActivateWindow(targetHandle);
             }
         }
 
@@ -101,7 +100,7 @@ namespace WindowTabs.CSharp.Services
             var targetHandle = windowHandles[index];
             if (targetHandle != IntPtr.Zero)
             {
-                WinUserApi.SetForegroundWindow(targetHandle);
+                NativeWindowApi.ActivateWindow(targetHandle);
             }
         }
 

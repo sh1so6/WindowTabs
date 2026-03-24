@@ -303,6 +303,8 @@ namespace WindowTabs.CSharp.UI
                 "- Tabbable windows now: " + tabbableCount,
                 "- Subscribe candidates: " + plan.WindowsToSubscribe.Count,
                 "- Group candidates: " + plan.WindowsToGroup.Count,
+                "- Regroup candidates: " + plan.WindowsToRegroup.Count,
+                "- Reorder candidates: " + plan.WindowsToReorder.Count,
                 "- Tracked groups after refresh: " + refresh.Groups.Count,
                 "- WinEvent subscriptions: " + monitorState?.ActiveWinEventSubscriptions,
                 "- Last trigger: " + monitorState?.LastTrigger,

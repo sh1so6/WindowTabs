@@ -35,6 +35,7 @@ namespace WindowTabs.CSharp.Services
             var plan = new DesktopPlan();
             var zOrderMap = BuildZOrderMap(windowsInZOrder);
             var groupedWindows = BuildGroupedWindowSet(groups);
+            var currentGroupsByWindow = BuildCurrentGroupMap(groups);
 
             foreach (var window in windowsInZOrder)
             {
@@ -53,6 +54,28 @@ namespace WindowTabs.CSharp.Services
                 if (filterService.IsTabbableWindow(window, screenRegion) && !groupedWindows.Contains(window.Handle))
                 {
                     plan.WindowsToGroup.Add(FindGroupForWindow(window, groups, zOrderMap, droppedWindowHandles));
+                    continue;
+                }
+
+                if (!filterService.IsTabbableWindow(window, screenRegion)
+                    || !currentGroupsByWindow.TryGetValue(window.Handle, out var currentGroupHandle))
+                {
+                    continue;
+                }
+
+                var regroupDecision = FindGroupForWindow(window, groups, zOrderMap, droppedWindowHandles);
+                if (regroupDecision.TargetGroupHandle.HasValue
+                    && regroupDecision.TargetGroupHandle.Value != currentGroupHandle)
+                {
+                    plan.WindowsToRegroup.Add(regroupDecision);
+                    continue;
+                }
+
+                if (regroupDecision.TargetGroupHandle.HasValue
+                    && regroupDecision.TargetGroupHandle.Value == currentGroupHandle
+                    && ShouldReorderWindow(window.Handle, currentGroupHandle, regroupDecision.InsertAfterWindowHandle, groups))
+                {
+                    plan.WindowsToReorder.Add(regroupDecision);
                 }
             }
 
@@ -150,6 +173,57 @@ namespace WindowTabs.CSharp.Services
             }
 
             return set;
+        }
+
+        private static Dictionary<IntPtr, IntPtr> BuildCurrentGroupMap(IReadOnlyList<GroupSnapshot> groups)
+        {
+            var map = new Dictionary<IntPtr, IntPtr>();
+            foreach (var group in groups)
+            {
+                foreach (var windowHandle in group.WindowHandles)
+                {
+                    map[windowHandle] = group.GroupHandle;
+                }
+            }
+
+            return map;
+        }
+
+        private static bool ShouldReorderWindow(
+            IntPtr windowHandle,
+            IntPtr currentGroupHandle,
+            IntPtr? desiredInsertAfterWindowHandle,
+            IReadOnlyList<GroupSnapshot> groups)
+        {
+            var group = groups.FirstOrDefault(candidate => candidate.GroupHandle == currentGroupHandle);
+            if (group == null)
+            {
+                return false;
+            }
+
+            return FindCurrentInsertAfterWindowHandle(group, windowHandle) != desiredInsertAfterWindowHandle;
+        }
+
+        private static IntPtr? FindCurrentInsertAfterWindowHandle(GroupSnapshot group, IntPtr windowHandle)
+        {
+            if (group?.WindowHandles == null)
+            {
+                return null;
+            }
+
+            for (var index = 0; index < group.WindowHandles.Count; index++)
+            {
+                if (group.WindowHandles[index] != windowHandle)
+                {
+                    continue;
+                }
+
+                return index > 0
+                    ? group.WindowHandles[index - 1]
+                    : (IntPtr?)null;
+            }
+
+            return null;
         }
 
         private IntPtr? FindAutoGroup(WindowSnapshot window, IReadOnlyList<GroupSnapshot> groups, IReadOnlyDictionary<IntPtr, int> zOrderMap)

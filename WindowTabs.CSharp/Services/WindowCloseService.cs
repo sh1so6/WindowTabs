@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Bemo;
 
 namespace WindowTabs.CSharp.Services
 {
@@ -9,17 +8,7 @@ namespace WindowTabs.CSharp.Services
     {
         public bool CloseWindow(IntPtr windowHandle)
         {
-            if (windowHandle == IntPtr.Zero)
-            {
-                return false;
-            }
-
-            WinUserApi.PostMessage(
-                windowHandle,
-                WindowMessages.WM_SYSCOMMAND,
-                new IntPtr(SystemMenuCommandValues.SC_CLOSE),
-                IntPtr.Zero);
-            return true;
+            return NativeWindowApi.CloseWindow(windowHandle);
         }
 
         public int CloseWindows(IEnumerable<IntPtr> windowHandles)

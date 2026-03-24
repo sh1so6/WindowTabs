@@ -61,7 +61,7 @@ namespace WindowTabs.CSharp.Services
 
         public IntPtr GetForegroundWindowHandle()
         {
-            return WinUserApi.GetForegroundWindow();
+            return NativeWindowApi.GetForegroundWindowHandle();
         }
 
         public WindowSnapshot CreateWindowSnapshot(IntPtr handle)

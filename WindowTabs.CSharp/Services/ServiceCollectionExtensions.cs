@@ -23,8 +23,18 @@ namespace WindowTabs.CSharp.Services
             services.AddSingleton<ProcessSettingsService>();
             services.AddSingleton<WindowPresentationStateStore>();
             services.AddSingleton<GroupVisualOrderService>();
+            services.AddSingleton<ManagedGroupStripLayoutService>();
+            services.AddSingleton<ManagedGroupStripDragStateService>();
+            services.AddSingleton<ManagedGroupStripDropController>();
+            services.AddSingleton<ManagedGroupStripButtonInteractionService>();
+            services.AddSingleton<ManagedGroupStripVisualService>();
+            services.AddSingleton<ManagedGroupStripPlacementService>();
+            services.AddSingleton<ManagedGroupStripPaintService>();
             services.AddSingleton<GroupWindowActivationService>();
             services.AddSingleton<GroupMutationService>();
+            services.AddSingleton<PresentationMutationService>();
+            services.AddSingleton<PresentationDialogService>();
+            services.AddSingleton<ManagedGroupStripMenuService>();
             services.AddSingleton<WindowCloseService>();
             services.AddSingleton<WindowDetachService>();
             services.AddSingleton<HotKeySettingsStore>();

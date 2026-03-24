@@ -1,5 +1,4 @@
 using System;
-using Bemo;
 using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
@@ -22,13 +21,7 @@ namespace WindowTabs.CSharp.Services
 
         public bool ActivateWindow(IntPtr windowHandle)
         {
-            if (windowHandle == IntPtr.Zero)
-            {
-                return false;
-            }
-
-            WinUserApi.SetForegroundWindow(windowHandle);
-            return true;
+            return NativeWindowApi.ActivateWindow(windowHandle);
         }
 
         public bool TryActivateForegroundRelative(bool moveNext)

@@ -168,6 +168,45 @@ namespace WindowTabs.CSharp.Services
                 droppedWindowHandles.Remove(decision.WindowHandle);
             }
 
+            foreach (var decision in plan.WindowsToRegroup)
+            {
+                var currentGroup = desktopRuntime.FindGroupContainingWindow(decision.WindowHandle);
+                if (currentGroup == null)
+                {
+                    continue;
+                }
+
+                var targetGroup = decision.TargetGroupHandle.HasValue
+                    ? desktopRuntime.FindGroup(decision.TargetGroupHandle.Value)
+                    : null;
+                if (targetGroup == null)
+                {
+                    targetGroup = desktopRuntime.CreateGroup(decision.TargetGroupHandle);
+                }
+
+                if (currentGroup.GroupHandle == targetGroup.GroupHandle)
+                {
+                    droppedWindowHandles.Remove(decision.WindowHandle);
+                    continue;
+                }
+
+                desktopRuntime.RemoveWindow(decision.WindowHandle);
+                targetGroup.AddWindow(decision.WindowHandle, decision.InsertAfterWindowHandle);
+                droppedWindowHandles.Remove(decision.WindowHandle);
+            }
+
+            foreach (var decision in plan.WindowsToReorder)
+            {
+                var currentGroup = desktopRuntime.FindGroupContainingWindow(decision.WindowHandle);
+                if (currentGroup == null)
+                {
+                    continue;
+                }
+
+                currentGroup.MoveWindowAfter(decision.WindowHandle, decision.InsertAfterWindowHandle);
+                droppedWindowHandles.Remove(decision.WindowHandle);
+            }
+
             foreach (var groupHandle in plan.GroupsToDestroy)
             {
                 desktopRuntime.DestroyGroup(groupHandle);
