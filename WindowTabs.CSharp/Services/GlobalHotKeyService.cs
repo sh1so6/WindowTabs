@@ -10,9 +10,8 @@ namespace WindowTabs.CSharp.Services
     internal sealed class GlobalHotKeyService : IDisposable
     {
         private readonly HotKeySettingsStore hotKeySettingsStore;
-        private readonly DesktopSnapshotService desktopSnapshotService;
-        private readonly IDesktopRuntime desktopRuntime;
         private readonly AppBehaviorState appBehaviorState;
+        private readonly GroupWindowActivationService groupWindowActivationService;
         private readonly Dictionary<string, HotKeyBinding> bindings = new Dictionary<string, HotKeyBinding>(StringComparer.OrdinalIgnoreCase);
         private readonly HotKeyWindow hotKeyWindow;
         private bool isInitialized;
@@ -20,14 +19,12 @@ namespace WindowTabs.CSharp.Services
 
         public GlobalHotKeyService(
             HotKeySettingsStore hotKeySettingsStore,
-            DesktopSnapshotService desktopSnapshotService,
-            IDesktopRuntime desktopRuntime,
-            AppBehaviorState appBehaviorState)
+            AppBehaviorState appBehaviorState,
+            GroupWindowActivationService groupWindowActivationService)
         {
             this.hotKeySettingsStore = hotKeySettingsStore ?? throw new ArgumentNullException(nameof(hotKeySettingsStore));
-            this.desktopSnapshotService = desktopSnapshotService ?? throw new ArgumentNullException(nameof(desktopSnapshotService));
-            this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
             this.appBehaviorState = appBehaviorState ?? throw new ArgumentNullException(nameof(appBehaviorState));
+            this.groupWindowActivationService = groupWindowActivationService ?? throw new ArgumentNullException(nameof(groupWindowActivationService));
             hotKeyWindow = new HotKeyWindow(HandleHotKeyMessage);
 
             bindings["prevTab"] = new HotKeyBinding(1, false);
@@ -118,9 +115,7 @@ namespace WindowTabs.CSharp.Services
                     continue;
                 }
 
-                var foregroundWindowHandle = desktopSnapshotService.GetForegroundWindowHandle();
-                var group = desktopRuntime.FindGroupContainingWindow(foregroundWindowHandle);
-                group?.SwitchWindow(binding.MoveNext, false);
+                groupWindowActivationService.TryActivateForegroundRelative(binding.MoveNext);
                 break;
             }
         }

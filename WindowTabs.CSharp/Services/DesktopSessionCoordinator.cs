@@ -13,7 +13,8 @@ namespace WindowTabs.CSharp.Services
         private readonly IDesktopRuntime desktopRuntime;
         private readonly WindowPresentationStateStore windowPresentationStateStore;
         private readonly HashSet<IntPtr> subscribedHandles = new HashSet<IntPtr>();
-        private readonly HashSet<IntPtr> droppedWindowHandles = new HashSet<IntPtr>();
+        private readonly Dictionary<IntPtr, DateTime> droppedWindowHandles = new Dictionary<IntPtr, DateTime>();
+        private static readonly TimeSpan DroppedWindowCooldown = TimeSpan.FromSeconds(2);
 
         public DesktopSessionCoordinator(
             DesktopSnapshotService desktopSnapshotService,
@@ -35,13 +36,14 @@ namespace WindowTabs.CSharp.Services
             var windows = desktopSnapshotService.EnumerateWindowsInZOrder();
             desktopPlannerService.UpdateTrackedProcessPaths(windows);
             RemoveClosedWindows(windows);
+            CleanupExpiredDroppedWindows();
 
             var plan = desktopPlannerService.BuildPlan(
                 windows,
                 ToGroupSnapshots(),
                 screenRegion,
                 subscribedHandles,
-                droppedWindowHandles);
+                GetActiveDroppedWindowHandles());
 
             ApplyPlan(plan);
 
@@ -72,12 +74,13 @@ namespace WindowTabs.CSharp.Services
 
             desktopPlannerService.UpdateTrackedProcessPaths(windows);
             var groups = ToGroupSnapshots();
+            CleanupExpiredDroppedWindows();
             var plan = desktopPlannerService.BuildPlan(
                 windows,
                 groups,
                 previousRefresh.ScreenRegion,
                 subscribedHandles,
-                droppedWindowHandles);
+                GetActiveDroppedWindowHandles());
 
             ApplyPlan(plan);
 
@@ -94,7 +97,7 @@ namespace WindowTabs.CSharp.Services
         {
             if (windowHandle != IntPtr.Zero)
             {
-                droppedWindowHandles.Add(windowHandle);
+                droppedWindowHandles[windowHandle] = DateTime.UtcNow.Add(DroppedWindowCooldown);
             }
         }
 
@@ -103,9 +106,29 @@ namespace WindowTabs.CSharp.Services
             var activeHandles = new HashSet<IntPtr>(windows.Select(window => window.Handle));
 
             subscribedHandles.RemoveWhere(handle => !activeHandles.Contains(handle));
-            droppedWindowHandles.RemoveWhere(handle => !activeHandles.Contains(handle));
+            foreach (var staleHandle in droppedWindowHandles.Keys.Where(handle => !activeHandles.Contains(handle)).ToArray())
+            {
+                droppedWindowHandles.Remove(staleHandle);
+            }
             desktopRuntime.RemoveClosedWindows(activeHandles);
             windowPresentationStateStore.RemoveClosedWindows(activeHandles);
+        }
+
+        private void CleanupExpiredDroppedWindows()
+        {
+            var now = DateTime.UtcNow;
+            foreach (var expiredHandle in droppedWindowHandles
+                         .Where(pair => pair.Value <= now)
+                         .Select(pair => pair.Key)
+                         .ToArray())
+            {
+                droppedWindowHandles.Remove(expiredHandle);
+            }
+        }
+
+        private ISet<IntPtr> GetActiveDroppedWindowHandles()
+        {
+            return new HashSet<IntPtr>(droppedWindowHandles.Keys);
         }
 
         private void ApplyPlan(DesktopPlan plan)

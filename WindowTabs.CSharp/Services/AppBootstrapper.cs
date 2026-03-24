@@ -14,6 +14,7 @@ namespace WindowTabs.CSharp.Services
         private readonly RefreshCoordinator refreshCoordinator;
         private readonly NotifyIconService notifyIconService;
         private readonly GlobalHotKeyService globalHotKeyService;
+        private readonly NumericTabHotKeyService numericTabHotKeyService;
         private readonly ManagedGroupDragDropTargetRegistry managedGroupDragDropTargetRegistry;
         private readonly ManagedGroupStripRegistry managedGroupStripRegistry;
         private bool initialized;
@@ -27,6 +28,7 @@ namespace WindowTabs.CSharp.Services
             RefreshCoordinator refreshCoordinator,
             NotifyIconService notifyIconService,
             GlobalHotKeyService globalHotKeyService,
+            NumericTabHotKeyService numericTabHotKeyService,
             ManagedGroupDragDropTargetRegistry managedGroupDragDropTargetRegistry,
             ManagedGroupStripRegistry managedGroupStripRegistry)
         {
@@ -38,6 +40,7 @@ namespace WindowTabs.CSharp.Services
             this.refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
             this.notifyIconService = notifyIconService ?? throw new ArgumentNullException(nameof(notifyIconService));
             this.globalHotKeyService = globalHotKeyService ?? throw new ArgumentNullException(nameof(globalHotKeyService));
+            this.numericTabHotKeyService = numericTabHotKeyService ?? throw new ArgumentNullException(nameof(numericTabHotKeyService));
             this.managedGroupDragDropTargetRegistry = managedGroupDragDropTargetRegistry ?? throw new ArgumentNullException(nameof(managedGroupDragDropTargetRegistry));
             this.managedGroupStripRegistry = managedGroupStripRegistry ?? throw new ArgumentNullException(nameof(managedGroupStripRegistry));
         }
@@ -55,6 +58,7 @@ namespace WindowTabs.CSharp.Services
             Application.ApplicationExit += OnApplicationExit;
             notifyIconService.Initialize();
             globalHotKeyService.Initialize();
+            numericTabHotKeyService.Initialize();
             managedGroupDragDropTargetRegistry.Initialize();
             managedGroupStripRegistry.Initialize();
 
@@ -73,6 +77,7 @@ namespace WindowTabs.CSharp.Services
 
             notifyIconService.Dispose();
             globalHotKeyService.Dispose();
+            numericTabHotKeyService.Dispose();
             managedGroupDragDropTargetRegistry.Dispose();
             managedGroupStripRegistry.Dispose();
         }

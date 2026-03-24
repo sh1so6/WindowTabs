@@ -22,6 +22,11 @@ namespace WindowTabs.CSharp.Services
             services.AddSingleton<PendingWindowLaunchTracker>();
             services.AddSingleton<ProcessSettingsService>();
             services.AddSingleton<WindowPresentationStateStore>();
+            services.AddSingleton<GroupVisualOrderService>();
+            services.AddSingleton<GroupWindowActivationService>();
+            services.AddSingleton<GroupMutationService>();
+            services.AddSingleton<WindowCloseService>();
+            services.AddSingleton<WindowDetachService>();
             services.AddSingleton<HotKeySettingsStore>();
             services.AddSingleton<DesktopSnapshotService>();
             services.AddSingleton<ManagedDesktopInteractionState>();
@@ -68,6 +73,7 @@ namespace WindowTabs.CSharp.Services
             services.AddSingleton<WorkspaceLayoutsService>();
             services.AddSingleton<NotifyIconService>();
             services.AddSingleton<GlobalHotKeyService>();
+            services.AddSingleton<NumericTabHotKeyService>();
             services.AddSingleton<AppBootstrapper>();
             services.AddSingleton<ProgramsSettingsControl>();
             services.AddSingleton<WorkspaceSettingsControl>();

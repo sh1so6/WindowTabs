@@ -44,6 +44,12 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
+            if (!insertAfterWindowHandle.HasValue)
+            {
+                windowHandles.Insert(0, windowHandle);
+                return;
+            }
+
             InsertWindow(windowHandle, insertAfterWindowHandle);
         }
 
@@ -74,6 +80,25 @@ namespace WindowTabs.CSharp.Services
                 ? (currentIndex + 1) % windowHandles.Count
                 : (currentIndex - 1 + windowHandles.Count) % windowHandles.Count;
             WinUserApi.SetForegroundWindow(windowHandles[targetIndex]);
+        }
+
+        public void ActivateWindowAt(int index, bool force)
+        {
+            if (index < 0 || index >= windowHandles.Count)
+            {
+                return;
+            }
+
+            if (windowHandles.Count == 1 && !force)
+            {
+                return;
+            }
+
+            var targetHandle = windowHandles[index];
+            if (targetHandle != IntPtr.Zero)
+            {
+                WinUserApi.SetForegroundWindow(targetHandle);
+            }
         }
 
         private void InsertWindow(IntPtr windowHandle, IntPtr? insertAfterWindowHandle)

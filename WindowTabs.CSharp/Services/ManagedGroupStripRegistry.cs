@@ -17,6 +17,10 @@ namespace WindowTabs.CSharp.Services
         private readonly DesktopSnapshotService desktopSnapshotService;
         private readonly SettingsSession settingsSession;
         private readonly WindowPresentationStateStore windowPresentationStateStore;
+        private readonly GroupVisualOrderService groupVisualOrderService;
+        private readonly GroupWindowActivationService groupWindowActivationService;
+        private readonly GroupMutationService groupMutationService;
+        private readonly WindowCloseService windowCloseService;
         private readonly Contracts.IDragDrop dragDrop;
         private readonly IDesktopRuntime desktopRuntime;
         private readonly IProgramRefresher refresher;
@@ -29,6 +33,10 @@ namespace WindowTabs.CSharp.Services
             DesktopSnapshotService desktopSnapshotService,
             SettingsSession settingsSession,
             WindowPresentationStateStore windowPresentationStateStore,
+            GroupVisualOrderService groupVisualOrderService,
+            GroupWindowActivationService groupWindowActivationService,
+            GroupMutationService groupMutationService,
+            WindowCloseService windowCloseService,
             Contracts.IDragDrop dragDrop,
             IDesktopRuntime desktopRuntime,
             IProgramRefresher refresher)
@@ -37,6 +45,10 @@ namespace WindowTabs.CSharp.Services
             this.desktopSnapshotService = desktopSnapshotService ?? throw new ArgumentNullException(nameof(desktopSnapshotService));
             this.settingsSession = settingsSession ?? throw new ArgumentNullException(nameof(settingsSession));
             this.windowPresentationStateStore = windowPresentationStateStore ?? throw new ArgumentNullException(nameof(windowPresentationStateStore));
+            this.groupVisualOrderService = groupVisualOrderService ?? throw new ArgumentNullException(nameof(groupVisualOrderService));
+            this.groupWindowActivationService = groupWindowActivationService ?? throw new ArgumentNullException(nameof(groupWindowActivationService));
+            this.groupMutationService = groupMutationService ?? throw new ArgumentNullException(nameof(groupMutationService));
+            this.windowCloseService = windowCloseService ?? throw new ArgumentNullException(nameof(windowCloseService));
             this.dragDrop = dragDrop ?? throw new ArgumentNullException(nameof(dragDrop));
             this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
             this.refresher = refresher ?? throw new ArgumentNullException(nameof(refresher));
@@ -115,6 +127,10 @@ namespace WindowTabs.CSharp.Services
                         desktopSnapshotService,
                         settingsSession,
                         windowPresentationStateStore,
+                        groupVisualOrderService,
+                        groupWindowActivationService,
+                        groupMutationService,
+                        windowCloseService,
                         dragDrop,
                         desktopRuntime,
                         refresher);
@@ -140,6 +156,10 @@ namespace WindowTabs.CSharp.Services
             private readonly DesktopSnapshotService desktopSnapshotService;
             private readonly SettingsSession settingsSession;
             private readonly WindowPresentationStateStore windowPresentationStateStore;
+            private readonly GroupVisualOrderService groupVisualOrderService;
+            private readonly GroupWindowActivationService groupWindowActivationService;
+            private readonly GroupMutationService groupMutationService;
+            private readonly WindowCloseService windowCloseService;
             private readonly Contracts.IDragDrop dragDrop;
             private readonly IDesktopRuntime desktopRuntime;
             private readonly IProgramRefresher refresher;
@@ -147,12 +167,21 @@ namespace WindowTabs.CSharp.Services
             private readonly Dictionary<IntPtr, TabButtonState> buttonStates = new Dictionary<IntPtr, TabButtonState>();
             private readonly StripDropTarget stripDropTarget;
             private IntPtr currentGroupHandle;
+            private List<IntPtr> actualGroupWindowHandles = new List<IntPtr>();
             private List<IntPtr> currentGroupWindowHandles = new List<IntPtr>();
+            private List<IntPtr> previewGroupWindowHandles;
+            private IntPtr currentDraggedWindowHandle;
+            private IntPtr currentDropTargetWindowHandle;
+            private bool currentDropTargetInsertAfter = true;
 
             public ManagedGroupStripForm(
                 DesktopSnapshotService desktopSnapshotService,
                 SettingsSession settingsSession,
                 WindowPresentationStateStore windowPresentationStateStore,
+                GroupVisualOrderService groupVisualOrderService,
+                GroupWindowActivationService groupWindowActivationService,
+                GroupMutationService groupMutationService,
+                WindowCloseService windowCloseService,
                 Contracts.IDragDrop dragDrop,
                 IDesktopRuntime desktopRuntime,
                 IProgramRefresher refresher)
@@ -160,6 +189,10 @@ namespace WindowTabs.CSharp.Services
                 this.desktopSnapshotService = desktopSnapshotService ?? throw new ArgumentNullException(nameof(desktopSnapshotService));
                 this.settingsSession = settingsSession ?? throw new ArgumentNullException(nameof(settingsSession));
                 this.windowPresentationStateStore = windowPresentationStateStore ?? throw new ArgumentNullException(nameof(windowPresentationStateStore));
+                this.groupVisualOrderService = groupVisualOrderService ?? throw new ArgumentNullException(nameof(groupVisualOrderService));
+                this.groupWindowActivationService = groupWindowActivationService ?? throw new ArgumentNullException(nameof(groupWindowActivationService));
+                this.groupMutationService = groupMutationService ?? throw new ArgumentNullException(nameof(groupMutationService));
+                this.windowCloseService = windowCloseService ?? throw new ArgumentNullException(nameof(windowCloseService));
                 this.dragDrop = dragDrop ?? throw new ArgumentNullException(nameof(dragDrop));
                 this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
                 this.refresher = refresher ?? throw new ArgumentNullException(nameof(refresher));
@@ -205,7 +238,9 @@ namespace WindowTabs.CSharp.Services
                 var appearance = settingsSession.Current.TabAppearance ?? SettingsDefaults.CreateDefaultTabAppearance();
                 var orderedHandles = OrderWindowHandles(group);
                 currentGroupHandle = group.GroupHandle;
-                currentGroupWindowHandles = group.WindowHandles.ToList();
+                actualGroupWindowHandles = orderedHandles.ToList();
+                var displayHandles = GetDisplayWindowHandles(orderedHandles);
+                currentGroupWindowHandles = displayHandles.ToList();
                 var anchorWindow = group.WindowHandles
                     .Select(hwnd => windowsByHandle.TryGetValue(hwnd, out var window) ? window : null)
                     .FirstOrDefault(window => window != null);
@@ -236,7 +271,7 @@ namespace WindowTabs.CSharp.Services
                     return;
                 }
 
-                foreach (var staleHandle in buttonStates.Keys.Where(hwnd => !orderedHandles.Contains(hwnd)).ToArray())
+                foreach (var staleHandle in buttonStates.Keys.Where(hwnd => !displayHandles.Contains(hwnd)).ToArray())
                 {
                     var state = buttonStates[staleHandle];
                     tabPanel.Controls.Remove(state.Button);
@@ -244,9 +279,9 @@ namespace WindowTabs.CSharp.Services
                     buttonStates.Remove(staleHandle);
                 }
 
-                for (var index = 0; index < orderedHandles.Count; index++)
+                for (var index = 0; index < displayHandles.Count; index++)
                 {
-                    var windowHandle = orderedHandles[index];
+                    var windowHandle = displayHandles[index];
                     if (!buttonStates.TryGetValue(windowHandle, out var state))
                     {
                         var button = CreateTabButton();
@@ -261,7 +296,7 @@ namespace WindowTabs.CSharp.Services
                         var isActive = activeWindowHandle == windowHandle;
                         var text = ResolveTabText(windowHandle, window.Text);
                         var fillColor = ResolveTabFillColor(windowHandle, appearance, isActive, state.IsHovered);
-                        var borderColor = ResolveTabBorderColor(windowHandle, appearance, isActive, state.IsHovered);
+                        var borderColor = ResolveTabBorderColor(windowHandle, appearance, isActive, state.IsHovered, currentDropTargetWindowHandle == windowHandle);
                         var textColor = ResolveTabTextColor(windowHandle, appearance, fillColor, isActive, state.IsHovered);
                         var width = Math.Max(90, Math.Min(appearance.TabMaxWidth, TextRenderer.MeasureText(text, state.Button.Font).Width + 24));
                         var height = Math.Max(22, appearance.TabHeight);
@@ -275,9 +310,9 @@ namespace WindowTabs.CSharp.Services
                         state.Button.Tag = windowHandle;
                         state.Button.Invalidate();
                     }
-
-                    tabPanel.Controls.SetChildIndex(state.Button, index);
                 }
+
+                ApplyDisplayedButtonOrder(displayHandles);
 
                 var stripSize = GetPreferredSize(Size.Empty);
                 var offsetY = group.SnapTabHeightMargin
@@ -324,32 +359,20 @@ namespace WindowTabs.CSharp.Services
 
             private List<IntPtr> OrderWindowHandles(GroupSnapshot group)
             {
-                var orderedHandles = new List<IntPtr>();
-                var rightAlignedHandles = new List<IntPtr>();
-                foreach (var hwnd in group.WindowHandles)
+                var runtimeGroup = desktopRuntime.FindGroup(group.GroupHandle);
+                if (runtimeGroup != null)
                 {
-                    if (ResolveAlignment(hwnd, group) == TabAlign.TopRight)
-                    {
-                        rightAlignedHandles.Add(hwnd);
-                    }
-                    else
-                    {
-                        orderedHandles.Add(hwnd);
-                    }
+                    return groupVisualOrderService.OrderWindowHandles(runtimeGroup);
                 }
 
-                orderedHandles.AddRange(rightAlignedHandles);
-                return orderedHandles;
+                return group.WindowHandles.ToList();
             }
 
             private void WireButton(Button button, TabButtonState state, IntPtr windowHandle)
             {
                 button.Click += (_, __) =>
                 {
-                    if (windowHandle != IntPtr.Zero)
-                    {
-                        BemoWinUserApi.SetForegroundWindow(windowHandle);
-                    }
+                    groupWindowActivationService.ActivateWindow(windowHandle);
                 };
 
                 button.MouseDown += (_, e) =>
@@ -409,8 +432,7 @@ namespace WindowTabs.CSharp.Services
                         return;
                     }
 
-                    desktopRuntime.RemoveWindow(windowHandle);
-                    refresher.Refresh();
+                    groupMutationService.UngroupWindow(windowHandle);
                 };
 
                 button.MouseEnter += (_, __) =>
@@ -420,7 +442,7 @@ namespace WindowTabs.CSharp.Services
                     Invalidate();
                     if (settingsSession.Current.EnableHoverActivate)
                     {
-                        state.StartHoverActivate(() => BemoWinUserApi.SetForegroundWindow(windowHandle));
+                        state.StartHoverActivate(() => groupWindowActivationService.ActivateWindow(windowHandle));
                     }
                 };
 
@@ -445,14 +467,39 @@ namespace WindowTabs.CSharp.Services
 
                 button.Paint += (_, e) =>
                 {
+                    if (currentDropTargetWindowHandle == windowHandle)
+                    {
+                        using (var brush = new SolidBrush(Color.Gold))
+                        {
+                            var markerX = currentDropTargetInsertAfter ? button.Width - 4 : 1;
+                            e.Graphics.FillRectangle(brush, markerX, 1, 3, Math.Max(1, button.Height - 2));
+                        }
+                    }
+
                     if (!windowPresentationStateStore.TryGetUnderlineColor(windowHandle, out var underlineColor))
                     {
+                        if (currentDropTargetWindowHandle == windowHandle)
+                        {
+                            using (var pen = new Pen(Color.Gold, 3))
+                            {
+                                e.Graphics.DrawRectangle(pen, 1, 1, button.Width - 3, button.Height - 3);
+                            }
+                        }
+
                         return;
                     }
 
                     using (var brush = new SolidBrush(underlineColor))
                     {
                         e.Graphics.FillRectangle(brush, 0, button.Height - 3, button.Width, 3);
+                    }
+
+                    if (currentDropTargetWindowHandle == windowHandle)
+                    {
+                        using (var pen = new Pen(Color.Gold, 3))
+                        {
+                            e.Graphics.DrawRectangle(pen, 1, 1, button.Width - 3, button.Height - 3);
+                        }
                     }
                 };
             }
@@ -513,6 +560,12 @@ namespace WindowTabs.CSharp.Services
 
             private TabAlign ResolveAlignment(IntPtr windowHandle, GroupSnapshot group)
             {
+                var runtimeGroup = desktopRuntime.FindGroup(group.GroupHandle);
+                if (runtimeGroup != null)
+                {
+                    return groupVisualOrderService.ResolveAlignment(windowHandle, runtimeGroup);
+                }
+
                 if (windowPresentationStateStore.TryGetAlignment(windowHandle, out var alignment))
                 {
                     return alignment;
@@ -545,8 +598,13 @@ namespace WindowTabs.CSharp.Services
                 return isActive ? appearance.TabActiveTabColor : appearance.TabInactiveTabColor;
             }
 
-            private Color ResolveTabBorderColor(IntPtr windowHandle, TabAppearanceInfo appearance, bool isActive, bool isHovered)
+            private Color ResolveTabBorderColor(IntPtr windowHandle, TabAppearanceInfo appearance, bool isActive, bool isHovered, bool isDropTarget)
             {
+                if (isDropTarget)
+                {
+                    return Color.Gold;
+                }
+
                 if (windowPresentationStateStore.TryGetBorderColor(windowHandle, out var borderColor))
                 {
                     return borderColor;
@@ -579,6 +637,205 @@ namespace WindowTabs.CSharp.Services
             {
                 var brightness = (background.R * 299) + (background.G * 587) + (background.B * 114);
                 return brightness >= 140000 ? Color.Black : Color.White;
+            }
+
+            private List<IntPtr> GetDisplayWindowHandles(List<IntPtr> orderedHandles)
+            {
+                if (previewGroupWindowHandles != null
+                    && orderedHandles.All(previewGroupWindowHandles.Contains)
+                    && previewGroupWindowHandles.Count >= orderedHandles.Count
+                    && previewGroupWindowHandles.Count <= orderedHandles.Count + 1)
+                {
+                    return previewGroupWindowHandles.ToList();
+                }
+
+                previewGroupWindowHandles = null;
+                return orderedHandles;
+            }
+
+            private void ApplyDisplayedButtonOrder(IReadOnlyList<IntPtr> orderedHandles)
+            {
+                for (var index = 0; index < orderedHandles.Count; index++)
+                {
+                    if (buttonStates.TryGetValue(orderedHandles[index], out var state))
+                    {
+                        tabPanel.Controls.SetChildIndex(state.Button, index);
+                    }
+                }
+            }
+
+            private void UpdatePreviewWindowOrder(IntPtr draggedWindowHandle, IntPtr? insertAfterWindowHandle)
+            {
+                if (draggedWindowHandle == IntPtr.Zero)
+                {
+                    ClearPreviewWindowOrder();
+                    return;
+                }
+
+                var previewOrder = actualGroupWindowHandles.Where(handle => handle != draggedWindowHandle).ToList();
+                if (insertAfterWindowHandle.HasValue)
+                {
+                    var insertAfterIndex = previewOrder.IndexOf(insertAfterWindowHandle.Value);
+                    if (insertAfterIndex >= 0)
+                    {
+                        previewOrder.Insert(insertAfterIndex + 1, draggedWindowHandle);
+                    }
+                    else
+                    {
+                        previewOrder.Add(draggedWindowHandle);
+                    }
+                }
+                else
+                {
+                    previewOrder.Insert(0, draggedWindowHandle);
+                }
+
+                previewGroupWindowHandles = previewOrder;
+                currentGroupWindowHandles = previewOrder.ToList();
+                ApplyDisplayedButtonOrder(previewOrder);
+            }
+
+            private void ClearPreviewWindowOrder()
+            {
+                if (previewGroupWindowHandles == null)
+                {
+                    return;
+                }
+
+                previewGroupWindowHandles = null;
+                currentGroupWindowHandles = actualGroupWindowHandles.ToList();
+                ApplyDisplayedButtonOrder(currentGroupWindowHandles);
+            }
+
+            private void UpdatePreviewForDrag(TabDragInfo dragInfo, IntPtr? insertAfterWindowHandle)
+            {
+                currentDraggedWindowHandle = dragInfo?.WindowHandle ?? IntPtr.Zero;
+                UpdatePreviewForCurrentDrag(insertAfterWindowHandle);
+            }
+
+            private void UpdatePreviewForCurrentDrag(IntPtr? insertAfterWindowHandle)
+            {
+                if (currentDraggedWindowHandle == IntPtr.Zero)
+                {
+                    ClearPreviewWindowOrder();
+                    return;
+                }
+
+                if (desktopRuntime.FindGroup(currentGroupHandle) == null)
+                {
+                    ClearPreviewWindowOrder();
+                    return;
+                }
+
+                UpdatePreviewWindowOrder(currentDraggedWindowHandle, insertAfterWindowHandle);
+            }
+
+            private void SetDropTargetWindowHandle(IntPtr windowHandle)
+            {
+                SetDropTargetWindowHandle(windowHandle, true);
+            }
+
+            private void SetDropTargetWindowHandle(IntPtr windowHandle, bool insertAfter)
+            {
+                if (currentDropTargetWindowHandle == windowHandle
+                    && currentDropTargetInsertAfter == insertAfter)
+                {
+                    return;
+                }
+
+                InvalidateDropTargetWindowHandle(currentDropTargetWindowHandle);
+                currentDropTargetWindowHandle = windowHandle;
+                currentDropTargetInsertAfter = insertAfter;
+                InvalidateDropTargetWindowHandle(currentDropTargetWindowHandle);
+            }
+
+            private void ClearDropTargetWindowHandle()
+            {
+                SetDropTargetWindowHandle(IntPtr.Zero);
+            }
+
+            private void InvalidateDropTargetWindowHandle(IntPtr windowHandle)
+            {
+                if (windowHandle != IntPtr.Zero && buttonStates.TryGetValue(windowHandle, out var state))
+                {
+                    state.Button.Invalidate();
+                }
+            }
+
+            private bool TryGetDropTargetInfo(Point clientPoint, out IntPtr targetWindowHandle, out IntPtr? insertAfterWindowHandle)
+            {
+                foreach (var pair in buttonStates)
+                {
+                    var bounds = pair.Value.Button.Bounds;
+                    if (!bounds.Contains(clientPoint))
+                    {
+                        continue;
+                    }
+
+                    targetWindowHandle = pair.Key;
+                    var insertAfter = clientPoint.X >= bounds.Left + (bounds.Width / 2);
+                    if (insertAfter)
+                    {
+                        insertAfterWindowHandle = targetWindowHandle;
+                        return true;
+                    }
+
+                    var targetIndex = currentGroupWindowHandles.IndexOf(targetWindowHandle);
+                    insertAfterWindowHandle = targetIndex > 0
+                        ? currentGroupWindowHandles[targetIndex - 1]
+                        : (IntPtr?)null;
+                    return true;
+                }
+
+                var orderedButtons = currentGroupWindowHandles
+                    .Where(buttonStates.ContainsKey)
+                    .Select(handle => new KeyValuePair<IntPtr, TabButtonState>(handle, buttonStates[handle]))
+                    .ToList();
+
+                if (orderedButtons.Count > 0 && tabPanel.DisplayRectangle.Contains(clientPoint))
+                {
+                    var firstButton = orderedButtons[0].Value.Button;
+                    if (clientPoint.X < firstButton.Left)
+                    {
+                        targetWindowHandle = orderedButtons[0].Key;
+                        insertAfterWindowHandle = null;
+                        return true;
+                    }
+
+                    for (var index = 1; index < orderedButtons.Count; index++)
+                    {
+                        var previousButton = orderedButtons[index - 1].Value.Button;
+                        var nextButton = orderedButtons[index].Value.Button;
+                        if (clientPoint.X <= previousButton.Right || clientPoint.X >= nextButton.Left)
+                        {
+                            continue;
+                        }
+
+                        var midpoint = previousButton.Right + ((nextButton.Left - previousButton.Right) / 2);
+                        if (clientPoint.X <= midpoint)
+                        {
+                            targetWindowHandle = orderedButtons[index - 1].Key;
+                            insertAfterWindowHandle = orderedButtons[index - 1].Key;
+                            return true;
+                        }
+
+                        targetWindowHandle = orderedButtons[index].Key;
+                        insertAfterWindowHandle = orderedButtons[index - 1].Key;
+                        return true;
+                    }
+
+                    var lastButton = orderedButtons[orderedButtons.Count - 1].Value.Button;
+                    if (clientPoint.X > lastButton.Right)
+                    {
+                        targetWindowHandle = orderedButtons[orderedButtons.Count - 1].Key;
+                        insertAfterWindowHandle = orderedButtons[orderedButtons.Count - 1].Key;
+                        return true;
+                    }
+                }
+
+                targetWindowHandle = IntPtr.Zero;
+                insertAfterWindowHandle = null;
+                return false;
             }
 
             private void ShowContextMenu(Control button, IntPtr windowHandle, Point clientPoint)
@@ -651,14 +908,10 @@ namespace WindowTabs.CSharp.Services
                 };
 
                 var closeItem = new ToolStripMenuItem("Close Tab");
-                closeItem.Click += (_, __) => CloseWindow(windowHandle);
+                closeItem.Click += (_, __) => windowCloseService.CloseWindow(windowHandle);
 
                 var ungroupItem = new ToolStripMenuItem("Ungroup Tab");
-                ungroupItem.Click += (_, __) =>
-                {
-                    desktopRuntime.RemoveWindow(windowHandle);
-                    refresher.Refresh();
-                };
+                ungroupItem.Click += (_, __) => groupMutationService.UngroupWindow(windowHandle);
 
                 var clearRenameItem = new ToolStripMenuItem("Clear Custom Name");
                 clearRenameItem.Click += (_, __) =>
@@ -778,24 +1031,10 @@ namespace WindowTabs.CSharp.Services
                 };
 
                 var ungroupAllItem = new ToolStripMenuItem("Ungroup All Tabs");
-                ungroupAllItem.Click += (_, __) =>
-                {
-                    foreach (var hwnd in currentGroupWindowHandles.ToArray())
-                    {
-                        desktopRuntime.RemoveWindow(hwnd);
-                    }
-
-                    refresher.Refresh();
-                };
+                ungroupAllItem.Click += (_, __) => groupMutationService.UngroupWindows(currentGroupWindowHandles);
 
                 var closeGroupItem = new ToolStripMenuItem("Close Group");
-                closeGroupItem.Click += (_, __) =>
-                {
-                    foreach (var hwnd in currentGroupWindowHandles.ToArray())
-                    {
-                        CloseWindow(hwnd);
-                    }
-                };
+                closeGroupItem.Click += (_, __) => windowCloseService.CloseWindows(currentGroupWindowHandles);
 
                 menu.Items.Add(topLeftItem);
                 menu.Items.Add(topRightItem);
@@ -811,20 +1050,6 @@ namespace WindowTabs.CSharp.Services
                 menu.Items.Add(closeGroupItem);
                 menu.Closed += (_, __) => menu.Dispose();
                 menu.Show(control, clientPoint);
-            }
-
-            private static void CloseWindow(IntPtr windowHandle)
-            {
-                if (windowHandle == IntPtr.Zero)
-                {
-                    return;
-                }
-
-                BemoWinUserApi.PostMessage(
-                    windowHandle,
-                    BemoWindowMessages.WM_SYSCOMMAND,
-                    new IntPtr(BemoSystemMenuCommandValues.SC_CLOSE),
-                    IntPtr.Zero);
             }
 
             private void ChooseColor(
@@ -974,46 +1199,76 @@ namespace WindowTabs.CSharp.Services
 
                 public bool OnDragEnter(object data, Point clientPoint)
                 {
-                    return owner.TryGetTargetWindowHandle(clientPoint, out _)
-                           && data is TabDragInfo dragInfo
-                           && dragInfo.WindowHandle != IntPtr.Zero;
+                    var dragInfo = data as TabDragInfo;
+                    var canEnter = owner.TryGetDropTargetInfo(clientPoint, out var targetWindowHandle, out var insertAfterWindowHandle)
+                        && dragInfo != null
+                        && dragInfo.WindowHandle != IntPtr.Zero;
+                    owner.SetDropTargetWindowHandle(
+                        canEnter ? targetWindowHandle : IntPtr.Zero,
+                        canEnter && insertAfterWindowHandle.HasValue && insertAfterWindowHandle.Value == targetWindowHandle);
+                    owner.UpdatePreviewForDrag(canEnter ? dragInfo : null, insertAfterWindowHandle);
+                    return canEnter;
                 }
 
                 public void OnDragMove(Point clientPoint)
                 {
+                    if (owner.TryGetDropTargetInfo(clientPoint, out var targetWindowHandle, out var insertAfterWindowHandle))
+                    {
+                        owner.SetDropTargetWindowHandle(
+                            targetWindowHandle,
+                            insertAfterWindowHandle.HasValue && insertAfterWindowHandle.Value == targetWindowHandle);
+                        owner.UpdatePreviewForCurrentDrag(insertAfterWindowHandle);
+                        return;
+                    }
+
+                    owner.ClearDropTargetWindowHandle();
+                    owner.ClearPreviewWindowOrder();
                 }
 
                 public void OnDrop(object data, Point clientPoint)
                 {
                     if (!(data is TabDragInfo dragInfo)
                         || dragInfo.WindowHandle == IntPtr.Zero
-                        || !owner.TryGetTargetWindowHandle(clientPoint, out var targetWindowHandle)
+                        || !owner.TryGetDropTargetInfo(clientPoint, out var targetWindowHandle, out var insertAfterWindowHandle)
                         || targetWindowHandle == dragInfo.WindowHandle)
                     {
+                        owner.ClearDropTargetWindowHandle();
+                        owner.ClearPreviewWindowOrder();
                         return;
                     }
 
                     var targetGroup = owner.desktopRuntime.FindGroupContainingWindow(targetWindowHandle);
                     if (targetGroup == null)
                     {
+                        owner.ClearDropTargetWindowHandle();
+                        owner.ClearPreviewWindowOrder();
                         return;
                     }
 
                     var sourceGroup = owner.desktopRuntime.FindGroupContainingWindow(dragInfo.WindowHandle);
                     if (sourceGroup != null && sourceGroup.GroupHandle == targetGroup.GroupHandle)
                     {
-                        targetGroup.MoveWindowAfter(dragInfo.WindowHandle, targetWindowHandle);
-                        owner.refresher.Refresh();
+                        owner.groupMutationService.MoveWindowWithinGroup(
+                            dragInfo.WindowHandle,
+                            targetGroup.GroupHandle,
+                            insertAfterWindowHandle);
+                        owner.ClearDropTargetWindowHandle();
+                        owner.ClearPreviewWindowOrder();
                         return;
                     }
 
-                    owner.desktopRuntime.RemoveWindow(dragInfo.WindowHandle);
-                    targetGroup.AddWindow(dragInfo.WindowHandle, targetWindowHandle);
-                    owner.refresher.Refresh();
+                    owner.groupMutationService.MoveWindowToGroup(
+                        dragInfo.WindowHandle,
+                        targetGroup.GroupHandle,
+                        insertAfterWindowHandle);
+                    owner.ClearDropTargetWindowHandle();
+                    owner.ClearPreviewWindowOrder();
                 }
 
                 public void OnDragExit()
                 {
+                    owner.ClearDropTargetWindowHandle();
+                    owner.ClearPreviewWindowOrder();
                 }
 
                 public void OnDragBegin()
@@ -1022,22 +1277,14 @@ namespace WindowTabs.CSharp.Services
 
                 public void OnDragEnd()
                 {
+                    owner.ClearDropTargetWindowHandle();
+                    owner.ClearPreviewWindowOrder();
                 }
             }
 
             private bool TryGetTargetWindowHandle(Point clientPoint, out IntPtr windowHandle)
             {
-                foreach (var pair in buttonStates)
-                {
-                    if (pair.Value.Button.Bounds.Contains(clientPoint))
-                    {
-                        windowHandle = pair.Key;
-                        return true;
-                    }
-                }
-
-                windowHandle = IntPtr.Zero;
-                return false;
+                return TryGetDropTargetInfo(clientPoint, out windowHandle, out _);
             }
         }
     }

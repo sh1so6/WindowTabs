@@ -57,5 +57,25 @@ namespace WindowTabs.CSharp.Services
         {
             group.switchWindow(next, force);
         }
+
+        public void ActivateWindowAt(int index, bool force)
+        {
+            var handles = WindowHandles;
+            if (index < 0 || index >= handles.Count)
+            {
+                return;
+            }
+
+            if (handles.Count == 1 && !force)
+            {
+                return;
+            }
+
+            var targetHandle = handles[index];
+            if (targetHandle != IntPtr.Zero)
+            {
+                WinUserApi.SetForegroundWindow(targetHandle);
+            }
+        }
     }
 }

@@ -20,5 +20,7 @@ namespace WindowTabs.CSharp.Contracts
         void RemoveWindow(IntPtr windowHandle);
 
         void SwitchWindow(bool next, bool force);
+
+        void ActivateWindowAt(int index, bool force);
     }
 }
