@@ -30,7 +30,7 @@ if not exist %MSBUILD% (
 :: Restore and build application dependencies
 :: ----------------------------------------
 set APP_PROJECT=WindowTabs.CSharp\WindowTabs.CSharp.csproj
-set APP_OUTPUT=WindowTabs.CSharp\bin\Any CPU\Release\net8.0-windows
+set APP_OUTPUT=WindowTabs.CSharp\bin\Any CPU\Release\net10.0-windows
 
 echo Restoring dependencies...
 %MSBUILD% %APP_PROJECT% /restore /p:Configuration=Release /p:Platform="Any CPU" /v:minimal

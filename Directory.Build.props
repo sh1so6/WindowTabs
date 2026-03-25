@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'WindowTabs.CSharp'">
-    <BaseIntermediateOutputPath>_net8_obj\</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>_net8_obj\</MSBuildProjectExtensionsPath>
+    <BaseIntermediateOutputPath>_net10_obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>_net10_obj\</MSBuildProjectExtensionsPath>
   </PropertyGroup>
 </Project>

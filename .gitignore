@@ -11,7 +11,7 @@ packages/
 # Build artifacts (intermediate files and outputs)
 # Note: exe/ folder contains intentional build outputs for distribution
 **/obj/
-**/_net8_obj/
+**/_net*_obj/
 **/_nolegacy_obj/
 **/artifacts/
 **/bin/Debug/
