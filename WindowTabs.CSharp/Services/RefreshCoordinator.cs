@@ -1,9 +1,8 @@
 using System;
-using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
 {
-    internal sealed class RefreshCoordinator : IProgramRefresher
+    internal sealed class RefreshCoordinator
     {
         private Action refreshAction = () => { };
 

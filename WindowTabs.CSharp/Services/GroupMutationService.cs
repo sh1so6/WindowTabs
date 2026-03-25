@@ -1,21 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
 {
     internal sealed class GroupMutationService
     {
-        private readonly IDesktopRuntime desktopRuntime;
-        private readonly IProgramRefresher refresher;
+        private readonly GroupMembershipService groupMembershipService;
+        private readonly RefreshCoordinator refreshCoordinator;
 
         public GroupMutationService(
-            IDesktopRuntime desktopRuntime,
-            IProgramRefresher refresher)
+            GroupMembershipService groupMembershipService,
+            RefreshCoordinator refreshCoordinator)
         {
-            this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
-            this.refresher = refresher ?? throw new ArgumentNullException(nameof(refresher));
+            this.groupMembershipService = groupMembershipService ?? throw new ArgumentNullException(nameof(groupMembershipService));
+            this.refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
         }
 
         public bool UngroupWindow(IntPtr windowHandle)
@@ -25,13 +24,12 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
 
-            var removedGroup = desktopRuntime.RemoveWindow(windowHandle);
-            if (!removedGroup.HasValue)
+            if (!groupMembershipService.RemoveWindow(windowHandle))
             {
                 return false;
             }
 
-            refresher.Refresh();
+            refreshCoordinator.Refresh();
             return true;
         }
 
@@ -45,12 +43,12 @@ namespace WindowTabs.CSharp.Services
             var changed = false;
             foreach (var windowHandle in windowHandles.Where(handle => handle != IntPtr.Zero).Distinct().ToArray())
             {
-                changed |= desktopRuntime.RemoveWindow(windowHandle).HasValue;
+                changed |= groupMembershipService.RemoveWindow(windowHandle);
             }
 
             if (changed)
             {
-                refresher.Refresh();
+                refreshCoordinator.Refresh();
             }
 
             return changed;
@@ -63,14 +61,11 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
 
-            var group = desktopRuntime.FindGroup(groupHandle);
-            if (group == null)
+            if (!groupMembershipService.MoveWindowWithinGroup(windowHandle, groupHandle, insertAfterWindowHandle))
             {
                 return false;
             }
-
-            group.MoveWindowAfter(windowHandle, insertAfterWindowHandle);
-            refresher.Refresh();
+            refreshCoordinator.Refresh();
             return true;
         }
 
@@ -81,20 +76,48 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
 
-            var targetGroup = desktopRuntime.FindGroup(targetGroupHandle);
-            if (targetGroup == null)
+            if (!groupMembershipService.MoveWindowToGroup(windowHandle, targetGroupHandle, insertAfterWindowHandle))
             {
                 return false;
             }
 
-            desktopRuntime.RemoveWindow(windowHandle);
-            targetGroup.AddWindow(windowHandle, insertAfterWindowHandle);
-            if (!insertAfterWindowHandle.HasValue)
+            refreshCoordinator.Refresh();
+            return true;
+        }
+
+        public bool MoveWindowRelativeToWindow(IntPtr windowHandle, IntPtr targetWindowHandle, IntPtr? insertAfterWindowHandle)
+        {
+            if (windowHandle == IntPtr.Zero || targetWindowHandle == IntPtr.Zero || windowHandle == targetWindowHandle)
             {
-                targetGroup.MoveWindowAfter(windowHandle, null);
+                return false;
             }
 
-            refresher.Refresh();
+            var targetGroupHandle = groupMembershipService.GetGroupHandleContainingWindow(targetWindowHandle);
+            if (!targetGroupHandle.HasValue)
+            {
+                return false;
+            }
+
+            var sourceGroupHandle = groupMembershipService.GetGroupHandleContainingWindow(windowHandle);
+            return sourceGroupHandle.HasValue && sourceGroupHandle.Value == targetGroupHandle.Value
+                ? MoveWindowWithinGroup(windowHandle, targetGroupHandle.Value, insertAfterWindowHandle)
+                : MoveWindowToGroup(windowHandle, targetGroupHandle.Value, insertAfterWindowHandle);
+        }
+
+        public bool MoveWindowsToNewGroup(IEnumerable<IntPtr> windowHandles, IntPtr? preferredHandle = null)
+        {
+            if (windowHandles == null)
+            {
+                return false;
+            }
+
+            var group = groupMembershipService.CreateGroupWithWindows(windowHandles, preferredHandle);
+            if (group == null)
+            {
+                return false;
+            }
+
+            refreshCoordinator.Refresh();
             return true;
         }
     }

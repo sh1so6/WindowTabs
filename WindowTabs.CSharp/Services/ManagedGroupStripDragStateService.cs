@@ -15,30 +15,28 @@ namespace WindowTabs.CSharp.Services
         }
 
         public ManagedGroupStripDropTargetChange UpdateDropTarget(
-            IntPtr currentTargetWindowHandle,
-            bool currentInsertAfterTarget,
+            ManagedGroupStripDropState currentState,
             IntPtr nextTargetWindowHandle,
             bool nextInsertAfterTarget)
         {
-            if (currentTargetWindowHandle == nextTargetWindowHandle
-                && currentInsertAfterTarget == nextInsertAfterTarget)
+            var nextState = new ManagedGroupStripDropState(nextTargetWindowHandle, nextInsertAfterTarget);
+            if (currentState.TargetWindowHandle == nextState.TargetWindowHandle
+                && currentState.InsertAfterTarget == nextState.InsertAfterTarget)
             {
                 return new ManagedGroupStripDropTargetChange(
                     hasChanged: false,
-                    targetWindowHandle: currentTargetWindowHandle,
-                    insertAfterTarget: currentInsertAfterTarget,
+                    dropState: currentState,
                     invalidatedWindowHandles: Array.Empty<IntPtr>());
             }
 
-            var invalidatedHandles = new[] { currentTargetWindowHandle, nextTargetWindowHandle }
+            var invalidatedHandles = new[] { currentState.TargetWindowHandle, nextState.TargetWindowHandle }
                 .Where(handle => handle != IntPtr.Zero)
                 .Distinct()
                 .ToArray();
 
             return new ManagedGroupStripDropTargetChange(
                 hasChanged: true,
-                targetWindowHandle: nextTargetWindowHandle,
-                insertAfterTarget: nextInsertAfterTarget,
+                dropState: nextState,
                 invalidatedWindowHandles: invalidatedHandles);
         }
 

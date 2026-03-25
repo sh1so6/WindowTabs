@@ -8,6 +8,7 @@ namespace WindowTabs.CSharp.Services
 {
     internal sealed class ManagedGroupStripMenuService
     {
+        private readonly ManagedGroupStripWindowSetService windowSetService;
         private readonly WindowPresentationStateStore windowPresentationStateStore;
         private readonly PresentationMutationService presentationMutationService;
         private readonly PresentationDialogService presentationDialogService;
@@ -16,6 +17,7 @@ namespace WindowTabs.CSharp.Services
         private readonly IDesktopRuntime desktopRuntime;
 
         public ManagedGroupStripMenuService(
+            ManagedGroupStripWindowSetService windowSetService,
             WindowPresentationStateStore windowPresentationStateStore,
             PresentationMutationService presentationMutationService,
             PresentationDialogService presentationDialogService,
@@ -23,6 +25,7 @@ namespace WindowTabs.CSharp.Services
             WindowCloseService windowCloseService,
             IDesktopRuntime desktopRuntime)
         {
+            this.windowSetService = windowSetService ?? throw new ArgumentNullException(nameof(windowSetService));
             this.windowPresentationStateStore = windowPresentationStateStore ?? throw new ArgumentNullException(nameof(windowPresentationStateStore));
             this.presentationMutationService = presentationMutationService ?? throw new ArgumentNullException(nameof(presentationMutationService));
             this.presentationDialogService = presentationDialogService ?? throw new ArgumentNullException(nameof(presentationDialogService));
@@ -34,99 +37,34 @@ namespace WindowTabs.CSharp.Services
         public void ShowWindowMenu(IWin32Window owner, Control control, Point clientPoint, IntPtr windowHandle)
         {
             var menu = new ContextMenuStrip();
-            var isPinned = windowPresentationStateStore.IsPinned(windowHandle);
-            var alignment = windowPresentationStateStore.TryGetAlignment(windowHandle, out var storedAlignment)
-                ? storedAlignment
-                : TabAlign.TopRight;
-
-            var pinItem = new ToolStripMenuItem(isPinned ? "Unpin Tab" : "Pin Tab");
-            pinItem.Click += (_, __) => presentationMutationService.SetPinned(windowHandle, !isPinned);
-
-            var alignLeftItem = new ToolStripMenuItem("Align Left")
-            {
-                Checked = alignment == TabAlign.TopLeft
-            };
-            alignLeftItem.Click += (_, __) => presentationMutationService.SetAlignment(windowHandle, TabAlign.TopLeft);
-
-            var alignRightItem = new ToolStripMenuItem("Align Right")
-            {
-                Checked = alignment == TabAlign.TopRight
-            };
-            alignRightItem.Click += (_, __) => presentationMutationService.SetAlignment(windowHandle, TabAlign.TopRight);
-
-            var fillColorItem = new ToolStripMenuItem("Fill Color...");
-            fillColorItem.Click += (_, __) =>
-            {
-                var color = presentationDialogService.ShowColorPicker(owner, GetCurrentColor(windowHandle, windowPresentationStateStore.TryGetFillColor));
-                if (color.HasValue)
-                {
-                    presentationMutationService.SetFillColor(windowHandle, color);
-                }
-            };
-
-            var underlineColorItem = new ToolStripMenuItem("Underline Color...");
-            underlineColorItem.Click += (_, __) =>
-            {
-                var color = presentationDialogService.ShowColorPicker(owner, GetCurrentColor(windowHandle, windowPresentationStateStore.TryGetUnderlineColor));
-                if (color.HasValue)
-                {
-                    presentationMutationService.SetUnderlineColor(windowHandle, color);
-                }
-            };
-
-            var borderColorItem = new ToolStripMenuItem("Border Color...");
-            borderColorItem.Click += (_, __) =>
-            {
-                var color = presentationDialogService.ShowColorPicker(owner, GetCurrentColor(windowHandle, windowPresentationStateStore.TryGetBorderColor));
-                if (color.HasValue)
-                {
-                    presentationMutationService.SetBorderColor(windowHandle, color);
-                }
-            };
-
-            var renameItem = new ToolStripMenuItem("Rename Tab...");
-            renameItem.Click += (_, __) =>
-            {
-                var currentName = windowPresentationStateStore.TryGetWindowNameOverride(windowHandle, out var nameOverride)
-                    ? nameOverride
-                    : string.Empty;
-                var renamed = presentationDialogService.ShowRenamePrompt(owner, "Rename Tab", currentName);
-                if (renamed == null)
-                {
-                    return;
-                }
-
-                presentationMutationService.SetWindowName(windowHandle, renamed);
-            };
-
-            var closeItem = new ToolStripMenuItem("Close Tab");
-            closeItem.Click += (_, __) => windowCloseService.CloseWindow(windowHandle);
-
-            var ungroupItem = new ToolStripMenuItem("Ungroup Tab");
-            ungroupItem.Click += (_, __) => groupMutationService.UngroupWindow(windowHandle);
-
-            var clearRenameItem = new ToolStripMenuItem("Clear Custom Name");
-            clearRenameItem.Click += (_, __) => presentationMutationService.ClearWindowName(windowHandle);
-
-            var clearColorsItem = new ToolStripMenuItem("Clear Custom Colors");
-            clearColorsItem.Click += (_, __) => presentationMutationService.ClearCustomColors(windowHandle);
-
-            menu.Items.Add(pinItem);
-            menu.Items.Add(alignLeftItem);
-            menu.Items.Add(alignRightItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(closeItem);
-            menu.Items.Add(ungroupItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(renameItem);
-            menu.Items.Add(clearRenameItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(fillColorItem);
-            menu.Items.Add(underlineColorItem);
-            menu.Items.Add(borderColorItem);
-            menu.Items.Add(clearColorsItem);
-            menu.Closed += (_, __) => menu.Dispose();
-            menu.Show(control, clientPoint);
+            var context = BuildWindowMenuContext(windowHandle);
+            AddItems(menu,
+                CreatePinItem(windowHandle, context.IsPinned),
+                CreateAlignItem(windowHandle, "Align Left", TabAlign.TopLeft, context.Alignment),
+                CreateAlignItem(windowHandle, "Align Right", TabAlign.TopRight, context.Alignment));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateActionItem("Detach Tab", (_, __) => groupMutationService.UngroupWindow(windowHandle)),
+                CreateMoveToNewGroupItem("Split Left Tabs To New Group", context.LeftSplitWindowHandles, context.OrderedWindowHandles),
+                CreateMoveToNewGroupItem("Split Right Tabs To New Group", context.RightSplitWindowHandles, context.OrderedWindowHandles));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateActionItem("Close Tab", (_, __) => windowCloseService.CloseWindow(windowHandle)),
+                CreateCloseWindowsItem("Close Left Tabs", context.LeftWindowHandles),
+                CreateCloseWindowsItem("Close Right Tabs", context.RightWindowHandles),
+                CreateCloseWindowsItem("Close Other Tabs", context.OtherWindowHandles),
+                CreateCloseAllItem(context.OrderedWindowHandles));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateRenameItem(owner, windowHandle),
+                CreateActionItem("Clear Custom Name", (_, __) => presentationMutationService.ClearWindowName(windowHandle)));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateColorItem(owner, windowHandle, "Fill Color...", windowPresentationStateStore.TryGetFillColor, presentationMutationService.SetFillColor),
+                CreateColorItem(owner, windowHandle, "Underline Color...", windowPresentationStateStore.TryGetUnderlineColor, presentationMutationService.SetUnderlineColor),
+                CreateColorItem(owner, windowHandle, "Border Color...", windowPresentationStateStore.TryGetBorderColor, presentationMutationService.SetBorderColor),
+                CreateActionItem("Clear Custom Colors", (_, __) => presentationMutationService.ClearCustomColors(windowHandle)));
+            ShowMenu(menu, control, clientPoint);
         }
 
         public void ShowGroupMenu(Control control, Point clientPoint, IntPtr groupHandle, IReadOnlyCollection<IntPtr> windowHandles)
@@ -138,56 +76,23 @@ namespace WindowTabs.CSharp.Services
             }
 
             var menu = new ContextMenuStrip();
-            var topLeftItem = new ToolStripMenuItem("Group Position Left")
-            {
-                Checked = string.Equals(group.TabPosition, "TopLeft", StringComparison.OrdinalIgnoreCase)
-            };
-            topLeftItem.Click += (_, __) => presentationMutationService.SetGroupTabPosition(group.GroupHandle, "TopLeft");
-
-            var topRightItem = new ToolStripMenuItem("Group Position Right")
-            {
-                Checked = !string.Equals(group.TabPosition, "TopLeft", StringComparison.OrdinalIgnoreCase)
-            };
-            topRightItem.Click += (_, __) => presentationMutationService.SetGroupTabPosition(group.GroupHandle, "TopRight");
-
-            var snapMarginItem = new ToolStripMenuItem("Snap Tab Height Margin")
-            {
-                Checked = group.SnapTabHeightMargin
-            };
-            snapMarginItem.Click += (_, __) => presentationMutationService.SetGroupSnapMargin(group.GroupHandle, !group.SnapTabHeightMargin);
-
-            var alignAllLeftItem = new ToolStripMenuItem("Align All Left");
-            alignAllLeftItem.Click += (_, __) => presentationMutationService.SetAlignment(windowHandles, TabAlign.TopLeft);
-
-            var alignAllRightItem = new ToolStripMenuItem("Align All Right");
-            alignAllRightItem.Click += (_, __) => presentationMutationService.SetAlignment(windowHandles, TabAlign.TopRight);
-
-            var pinAllItem = new ToolStripMenuItem("Pin All Tabs");
-            pinAllItem.Click += (_, __) => presentationMutationService.SetPinned(windowHandles, true);
-
-            var unpinAllItem = new ToolStripMenuItem("Unpin All Tabs");
-            unpinAllItem.Click += (_, __) => presentationMutationService.SetPinned(windowHandles, false);
-
-            var ungroupAllItem = new ToolStripMenuItem("Ungroup All Tabs");
-            ungroupAllItem.Click += (_, __) => groupMutationService.UngroupWindows(windowHandles);
-
-            var closeGroupItem = new ToolStripMenuItem("Close Group");
-            closeGroupItem.Click += (_, __) => windowCloseService.CloseWindows(windowHandles);
-
-            menu.Items.Add(topLeftItem);
-            menu.Items.Add(topRightItem);
-            menu.Items.Add(snapMarginItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(alignAllLeftItem);
-            menu.Items.Add(alignAllRightItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(pinAllItem);
-            menu.Items.Add(unpinAllItem);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(ungroupAllItem);
-            menu.Items.Add(closeGroupItem);
-            menu.Closed += (_, __) => menu.Dispose();
-            menu.Show(control, clientPoint);
+            AddItems(menu,
+                CreateGroupPositionItem(group.GroupHandle, "Group Position Left", "TopLeft", string.Equals(group.TabPosition, "TopLeft", StringComparison.OrdinalIgnoreCase)),
+                CreateGroupPositionItem(group.GroupHandle, "Group Position Right", "TopRight", !string.Equals(group.TabPosition, "TopLeft", StringComparison.OrdinalIgnoreCase)),
+                CreateGroupSnapMarginItem(group));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateActionItem("Align All Left", (_, __) => presentationMutationService.SetAlignment(windowHandles, TabAlign.TopLeft)),
+                CreateActionItem("Align All Right", (_, __) => presentationMutationService.SetAlignment(windowHandles, TabAlign.TopRight)));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateActionItem("Pin All Tabs", (_, __) => presentationMutationService.SetPinned(windowHandles, true)),
+                CreateActionItem("Unpin All Tabs", (_, __) => presentationMutationService.SetPinned(windowHandles, false)));
+            AddSeparator(menu);
+            AddItems(menu,
+                CreateActionItem("Ungroup All Tabs", (_, __) => groupMutationService.UngroupWindows(windowHandles)),
+                CreateActionItem("Close Group", (_, __) => windowCloseService.CloseWindows(windowHandles)));
+            ShowMenu(menu, control, clientPoint);
         }
 
         private static Color? GetCurrentColor(IntPtr windowHandle, TryGetColor tryGetColor)
@@ -197,6 +102,173 @@ namespace WindowTabs.CSharp.Services
                 : (Color?)null;
         }
 
+        private WindowMenuContext BuildWindowMenuContext(IntPtr windowHandle)
+        {
+            var alignment = windowPresentationStateStore.TryGetAlignment(windowHandle, out var storedAlignment)
+                ? storedAlignment
+                : TabAlign.TopRight;
+            var hasWindowContext = windowSetService.TryGetWindowContext(windowHandle, out _, out var orderedWindowHandles, out var currentIndex);
+            return new WindowMenuContext(
+                windowPresentationStateStore.IsPinned(windowHandle),
+                alignment,
+                hasWindowContext ? orderedWindowHandles : Array.Empty<IntPtr>(),
+                hasWindowContext ? windowSetService.GetLeftWindowHandles(orderedWindowHandles, currentIndex) : Array.Empty<IntPtr>(),
+                hasWindowContext ? windowSetService.GetRightWindowHandles(orderedWindowHandles, currentIndex) : Array.Empty<IntPtr>(),
+                hasWindowContext ? windowSetService.GetOtherWindowHandles(orderedWindowHandles, windowHandle) : Array.Empty<IntPtr>(),
+                hasWindowContext ? windowSetService.GetLeftSplitWindowHandles(orderedWindowHandles, currentIndex) : Array.Empty<IntPtr>(),
+                hasWindowContext ? windowSetService.GetRightSplitWindowHandles(orderedWindowHandles, currentIndex) : Array.Empty<IntPtr>());
+        }
+
+        private ToolStripMenuItem CreatePinItem(IntPtr windowHandle, bool isPinned)
+        {
+            return CreateActionItem(
+                isPinned ? "Unpin Tab" : "Pin Tab",
+                (_, __) => presentationMutationService.SetPinned(windowHandle, !isPinned));
+        }
+
+        private ToolStripMenuItem CreateAlignItem(IntPtr windowHandle, string text, TabAlign alignment, TabAlign currentAlignment)
+        {
+            var item = CreateActionItem(text, (_, __) => presentationMutationService.SetAlignment(windowHandle, alignment));
+            item.Checked = currentAlignment == alignment;
+            return item;
+        }
+
+        private ToolStripMenuItem CreateMoveToNewGroupItem(string text, IReadOnlyCollection<IntPtr> handles, IReadOnlyCollection<IntPtr> orderedWindowHandles)
+        {
+            var item = CreateActionItem(text, (_, __) => groupMutationService.MoveWindowsToNewGroup(handles));
+            item.Enabled = handles.Count > 0 && handles.Count < orderedWindowHandles.Count;
+            return item;
+        }
+
+        private ToolStripMenuItem CreateCloseWindowsItem(string text, IReadOnlyCollection<IntPtr> handles)
+        {
+            var item = CreateActionItem(text, (_, __) => windowCloseService.CloseWindows(handles));
+            item.Enabled = handles.Count > 0;
+            return item;
+        }
+
+        private ToolStripMenuItem CreateCloseAllItem(IReadOnlyCollection<IntPtr> handles)
+        {
+            var item = CreateActionItem("Close All Tabs", (_, __) => windowCloseService.CloseWindows(handles));
+            item.Enabled = handles.Count > 1;
+            return item;
+        }
+
+        private ToolStripMenuItem CreateRenameItem(IWin32Window owner, IntPtr windowHandle)
+        {
+            return CreateActionItem("Rename Tab...", (_, __) =>
+            {
+                var currentName = windowPresentationStateStore.TryGetWindowNameOverride(windowHandle, out var nameOverride)
+                    ? nameOverride
+                    : string.Empty;
+                var renamed = presentationDialogService.ShowRenamePrompt(owner, "Rename Tab", currentName);
+                if (renamed == null)
+                {
+                    return;
+                }
+
+                presentationMutationService.SetWindowName(windowHandle, renamed);
+            });
+        }
+
+        private ToolStripMenuItem CreateColorItem(
+            IWin32Window owner,
+            IntPtr windowHandle,
+            string text,
+            TryGetColor tryGetColor,
+            Action<IntPtr, Color?> setColor)
+        {
+            return CreateActionItem(text, (_, __) =>
+            {
+                var color = presentationDialogService.ShowColorPicker(owner, GetCurrentColor(windowHandle, tryGetColor));
+                if (color.HasValue)
+                {
+                    setColor(windowHandle, color);
+                }
+            });
+        }
+
+        private ToolStripMenuItem CreateGroupPositionItem(IntPtr groupHandle, string text, string position, bool isChecked)
+        {
+            var item = CreateActionItem(text, (_, __) => presentationMutationService.SetGroupTabPosition(groupHandle, position));
+            item.Checked = isChecked;
+            return item;
+        }
+
+        private ToolStripMenuItem CreateGroupSnapMarginItem(IWindowGroupRuntime group)
+        {
+            var item = CreateActionItem(
+                "Snap Tab Height Margin",
+                (_, __) => presentationMutationService.SetGroupSnapMargin(group.GroupHandle, !group.SnapTabHeightMargin));
+            item.Checked = group.SnapTabHeightMargin;
+            return item;
+        }
+
+        private static ToolStripMenuItem CreateActionItem(string text, EventHandler onClick)
+        {
+            var item = new ToolStripMenuItem(text);
+            item.Click += onClick;
+            return item;
+        }
+
+        private static void AddItems(ContextMenuStrip menu, params ToolStripItem[] items)
+        {
+            foreach (var item in items)
+            {
+                menu.Items.Add(item);
+            }
+        }
+
+        private static void AddSeparator(ContextMenuStrip menu)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+        }
+
+        private static void ShowMenu(ContextMenuStrip menu, Control control, Point clientPoint)
+        {
+            menu.Closed += (_, __) => menu.Dispose();
+            menu.Show(control, clientPoint);
+        }
+
         private delegate bool TryGetColor(IntPtr hwnd, out Color color);
+
+        private sealed class WindowMenuContext
+        {
+            public WindowMenuContext(
+                bool isPinned,
+                TabAlign alignment,
+                IReadOnlyCollection<IntPtr> orderedWindowHandles,
+                IReadOnlyCollection<IntPtr> leftWindowHandles,
+                IReadOnlyCollection<IntPtr> rightWindowHandles,
+                IReadOnlyCollection<IntPtr> otherWindowHandles,
+                IReadOnlyCollection<IntPtr> leftSplitWindowHandles,
+                IReadOnlyCollection<IntPtr> rightSplitWindowHandles)
+            {
+                IsPinned = isPinned;
+                Alignment = alignment;
+                OrderedWindowHandles = orderedWindowHandles ?? Array.Empty<IntPtr>();
+                LeftWindowHandles = leftWindowHandles ?? Array.Empty<IntPtr>();
+                RightWindowHandles = rightWindowHandles ?? Array.Empty<IntPtr>();
+                OtherWindowHandles = otherWindowHandles ?? Array.Empty<IntPtr>();
+                LeftSplitWindowHandles = leftSplitWindowHandles ?? Array.Empty<IntPtr>();
+                RightSplitWindowHandles = rightSplitWindowHandles ?? Array.Empty<IntPtr>();
+            }
+
+            public bool IsPinned { get; }
+
+            public TabAlign Alignment { get; }
+
+            public IReadOnlyCollection<IntPtr> OrderedWindowHandles { get; }
+
+            public IReadOnlyCollection<IntPtr> LeftWindowHandles { get; }
+
+            public IReadOnlyCollection<IntPtr> RightWindowHandles { get; }
+
+            public IReadOnlyCollection<IntPtr> OtherWindowHandles { get; }
+
+            public IReadOnlyCollection<IntPtr> LeftSplitWindowHandles { get; }
+
+            public IReadOnlyCollection<IntPtr> RightSplitWindowHandles { get; }
+        }
     }
 }

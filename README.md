@@ -31,6 +31,21 @@ This version (ss_jp_yyyy.mm.dd) is forked from payaneco's repository and incorpo
 Can be compiled with Visual Studio 2026 Community Edition.
 - https://github.com/standard-software/WindowTabs
 
+## Repository Layout
+
+- Mainline solution: `WindowTabs.sln`
+- Mainline project: `WindowTabs.CSharp/WindowTabs.CSharp.csproj`
+
+Daily development, build, and release flows are centered on `WindowTabs.sln` and `WindowTabs.CSharp`.
+
+## Retired Components
+
+- `Win32/` was retired and removed during repo slimming.
+- `treeviewadv/` was retired and removed during repo slimming.
+
+These directories were no longer part of the mainline build and were kept only as historical baggage.
+The repository now treats `WindowTabs.sln` and `WindowTabs.CSharp` as the only active development lane.
+
 ## Index
 - [Version](#Version)
 - [Download](#Download)
@@ -57,22 +72,13 @@ For detailed version history and changelog, see [version.md](version.md).
 
 You can download prebuilt files from the [releases](https://github.com/standard-software/WindowTabs/releases) page.
 
-Two download options are available:
+The current release artifact is:
 
-- **WtSetup.msi** - Windows Installer package with automatic installation and uninstallation support
 - **WindowTabs.zip** - Portable version that can be extracted and run from any location
 
-You can also build the installer and portable version yourself using the provided build scripts.
+You can also build the portable distribution yourself using the provided build script.
 
 ## Installation
-
-### Using the MSI Installer (WtSetup.msi)
-
-1. Download `WtSetup.msi` from the [Releases](https://github.com/standard-software/WindowTabs/releases) page
-2. Run the installer and follow the installation wizard
-3. Choose the installation directory (default: Program Files\WindowTabs)
-4. Desktop shortcut and Start Menu shortcut will be created automatically
-5. Optionally launch WindowTabs at the end of installation
 
 ### Using the Portable Version (WindowTabs.zip)
 
@@ -80,6 +86,9 @@ You can also build the installer and portable version yourself using the provide
 2. Extract the archive to your preferred location
 3. Run `WindowTabs.exe`
 4. WindowTabs will run in the background and add a tray icon
+
+Optional:
+- Create a shortcut to `WindowTabs.exe` if you want Start Menu or Desktop access
 
 To run WindowTabs at startup:
 - Enable "Run at startup" option in the Settings > Behavior tab
@@ -249,7 +258,7 @@ WindowTabs fully supports Windows virtual desktops (Win+Tab):
 
 - English, Japanese, Chinese Simplified, and Chinese Traditional language support
 - Japanese Kansai and Tohoku dialect files included
-- Language files can be customized to support any language **(WtProgram/Language)**
+- Language files can be customized to support any language **(WindowTabs.CSharp/Language)**
 - Runtime language switching without restart
 - Switch languages via tray menu
 
@@ -342,17 +351,14 @@ This feature remains unchanged from the original WindowTabs functionality.
 ### Prerequisites
 
 - Visual Studio 2026 Community Edition
-- WiX Toolset v3.11 or newer (for building the MSI installer)
-
 ### Build Scripts
 
 A build script is provided in the project root:
 
-- **build_release.bat** - Builds both the MSI installer and the portable ZIP distribution
-  - Output: `exe\installer\WtSetup.msi`
+- **build_release.bat** - Builds the portable ZIP distribution
   - Output: `exe\zip\WindowTabs.zip`
 
-Simply run the batch file to create the distribution packages.
+Simply run the batch file to create the distribution package.
 
 
 ## Links

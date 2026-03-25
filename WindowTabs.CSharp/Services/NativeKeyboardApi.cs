@@ -1,9 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
-
 namespace WindowTabs.CSharp.Services
 {
-    internal static class NativeKeyboardApi
+    internal static partial class NativeKeyboardApi
     {
         internal const int ModAlt = 0x0001;
         internal const int ModControl = 0x0002;
@@ -106,32 +105,5 @@ namespace WindowTabs.CSharp.Services
 
             virtualKey = lowByte;
         }
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hInstance, uint threadId);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
-
-        [DllImport("user32.dll")]
-        private static extern int CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true, EntryPoint = "RegisterHotKey")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool RegisterHotKeyCore(IntPtr hWnd, int id, int fsModifiers, int vk);
-
-        [DllImport("user32.dll", SetLastError = true, EntryPoint = "UnregisterHotKey")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool UnregisterHotKeyCore(IntPtr hWnd, int id);
-
-        [DllImport("user32.dll")]
-        private static extern short GetAsyncKeyState(int vKey);
-
-        [DllImport("user32.dll")]
-        private static extern int GetSystemMetrics(int nIndex);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        private static extern IntPtr GetModuleHandle(string lpModuleName);
     }
 }

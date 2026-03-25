@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
@@ -9,16 +8,16 @@ namespace WindowTabs.CSharp.Services
     internal sealed class FilterService
     {
         private readonly SettingsSession settingsSession;
-        private readonly IProgramRefresher refresher;
+        private readonly RefreshCoordinator refreshCoordinator;
         private readonly HashSet<string> blackListedExeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "taskmgr.exe"
         };
 
-        public FilterService(SettingsSession settingsSession, IProgramRefresher refresher)
+        public FilterService(SettingsSession settingsSession, RefreshCoordinator refreshCoordinator)
         {
             this.settingsSession = settingsSession ?? throw new ArgumentNullException(nameof(settingsSession));
-            this.refresher = refresher ?? throw new ArgumentNullException(nameof(refresher));
+            this.refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
         }
 
         public IReadOnlyCollection<string> IncludedPaths => settingsSession.Current.IncludedPaths;
@@ -31,7 +30,7 @@ namespace WindowTabs.CSharp.Services
             set
             {
                 settingsSession.Update(snapshot => snapshot.EnableTabbingByDefault = value);
-                refresher.Refresh();
+                refreshCoordinator.Refresh();
             }
         }
 
@@ -132,7 +131,7 @@ namespace WindowTabs.CSharp.Services
                 snapshot.ExcludedPaths = new List<string>(excluded);
             });
 
-            refresher.Refresh();
+            refreshCoordinator.Refresh();
         }
 
         private bool IsBanned(WindowSnapshot window)

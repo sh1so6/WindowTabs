@@ -1,9 +1,7 @@
 using System;
-using System.Runtime.InteropServices;
-
 namespace WindowTabs.CSharp.Services
 {
-    internal static class NativeDwmApi
+    internal static partial class NativeDwmApi
     {
         private const int DwmwaCloaked = 14;
 
@@ -19,8 +17,5 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
         }
-
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
     }
 }

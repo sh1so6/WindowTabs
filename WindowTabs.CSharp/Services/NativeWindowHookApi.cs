@@ -1,9 +1,7 @@
 using System;
-using System.Runtime.InteropServices;
-
 namespace WindowTabs.CSharp.Services
 {
-    internal static class NativeWindowHookApi
+    internal static partial class NativeWindowHookApi
     {
         internal const int HshellWindowCreated = 1;
         internal const int HshellWindowDestroyed = 2;
@@ -64,26 +62,5 @@ namespace WindowTabs.CSharp.Services
         {
             return hookHandle != IntPtr.Zero && UnhookWinEventCore(hookHandle);
         }
-
-        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "RegisterWindowMessageW", SetLastError = true)]
-        private static extern uint RegisterWindowMessageCore(string lpString);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool RegisterShellHookWindowCore(IntPtr hWnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr SetWinEventHookCore(
-            uint eventMin,
-            uint eventMax,
-            IntPtr hmodWinEventProc,
-            WinEventProc lpfnWinEventProc,
-            uint idProcess,
-            uint idThread,
-            WinEventHookFlags dwFlags);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool UnhookWinEventCore(IntPtr hWinEventHook);
     }
 }

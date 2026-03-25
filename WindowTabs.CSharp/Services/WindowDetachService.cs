@@ -1,7 +1,6 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
@@ -9,17 +8,17 @@ namespace WindowTabs.CSharp.Services
     internal sealed class WindowDetachService
     {
         private readonly SettingsSession settingsSession;
-        private readonly DesktopSessionCoordinator desktopSessionCoordinator;
-        private readonly IProgramRefresher refresher;
+        private readonly DesktopSessionStateService sessionStateService;
+        private readonly RefreshCoordinator refreshCoordinator;
 
         public WindowDetachService(
             SettingsSession settingsSession,
-            DesktopSessionCoordinator desktopSessionCoordinator,
-            IProgramRefresher refresher)
+            DesktopSessionStateService sessionStateService,
+            RefreshCoordinator refreshCoordinator)
         {
             this.settingsSession = settingsSession ?? throw new ArgumentNullException(nameof(settingsSession));
-            this.desktopSessionCoordinator = desktopSessionCoordinator ?? throw new ArgumentNullException(nameof(desktopSessionCoordinator));
-            this.refresher = refresher ?? throw new ArgumentNullException(nameof(refresher));
+            this.sessionStateService = sessionStateService ?? throw new ArgumentNullException(nameof(sessionStateService));
+            this.refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
         }
 
         public bool DetachWindowToPoint(Point screenPoint, WindowTabs.CSharp.Models.TabDragInfo dragInfo)
@@ -76,8 +75,8 @@ namespace WindowTabs.CSharp.Services
                     NativeWindowApi.SwpNoSize | NativeWindowApi.SwpNoActivate | NativeWindowApi.SwpNoZOrder);
             }
 
-            desktopSessionCoordinator.MarkDropped(handle);
-            refresher.Refresh();
+            sessionStateService.MarkDropped(handle);
+            refreshCoordinator.Refresh();
             return true;
         }
 

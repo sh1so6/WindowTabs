@@ -1,13 +1,29 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WindowTabs.CSharp.Models
 {
     internal sealed class WorkspaceGroupLayout
     {
-        public string Name { get; set; } = string.Empty;
+        public WorkspaceGroupLayout()
+            : this(string.Empty, new WindowPlacementValue(), new List<WorkspaceWindowLayout>())
+        {
+        }
 
-        public WindowPlacementValue Placement { get; set; } = new WindowPlacementValue();
+        public WorkspaceGroupLayout(
+            string name,
+            WindowPlacementValue placement,
+            IEnumerable<WorkspaceWindowLayout> windows)
+        {
+            Name = name ?? string.Empty;
+            Placement = placement ?? new WindowPlacementValue();
+            Windows = (windows ?? new List<WorkspaceWindowLayout>()).ToArray();
+        }
 
-        public List<WorkspaceWindowLayout> Windows { get; set; } = new List<WorkspaceWindowLayout>();
+        public string Name { get; }
+
+        public WindowPlacementValue Placement { get; }
+
+        public IReadOnlyList<WorkspaceWindowLayout> Windows { get; }
     }
 }

@@ -1,48 +1,65 @@
 using System;
 using System.Windows.Forms;
-using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
 {
     internal sealed class AppBootstrapper
     {
         private readonly SettingsSession settingsSession;
-        private readonly ILocalizationContext localizationContext;
-        private readonly IDesktopRuntime desktopRuntime;
-        private readonly DesktopSessionCoordinator desktopSessionCoordinator;
+        private readonly ManagedDesktopRuntime managedDesktopRuntime;
         private readonly DesktopMonitoringService desktopMonitoringService;
         private readonly RefreshCoordinator refreshCoordinator;
-        private readonly NotifyIconService notifyIconService;
-        private readonly GlobalHotKeyService globalHotKeyService;
-        private readonly NumericTabHotKeyService numericTabHotKeyService;
-        private readonly ManagedGroupDragDropTargetRegistry managedGroupDragDropTargetRegistry;
-        private readonly ManagedGroupStripRegistry managedGroupStripRegistry;
+        private readonly StartupComponentStatusService startupComponentStatusService;
+        private readonly BootstrapParticipant[] failSoftShellParticipants;
+        private readonly BootstrapParticipant[] failSoftUiRegistryParticipants;
+        private readonly ShutdownParticipant[] shutdownParticipants;
         private bool initialized;
 
         public AppBootstrapper(
             SettingsSession settingsSession,
-            ILocalizationContext localizationContext,
-            IDesktopRuntime desktopRuntime,
-            DesktopSessionCoordinator desktopSessionCoordinator,
+            ManagedDesktopRuntime managedDesktopRuntime,
             DesktopMonitoringService desktopMonitoringService,
             RefreshCoordinator refreshCoordinator,
             NotifyIconService notifyIconService,
             GlobalHotKeyService globalHotKeyService,
             NumericTabHotKeyService numericTabHotKeyService,
-            ManagedGroupDragDropTargetRegistry managedGroupDragDropTargetRegistry,
-            ManagedGroupStripRegistry managedGroupStripRegistry)
+            ManagedGroupDragDropTargetRegistryLifecycleService managedGroupDragDropTargetRegistryLifecycleService,
+            ManagedGroupStripRegistryLifecycleService managedGroupStripRegistryLifecycleService,
+            StartupComponentStatusService startupComponentStatusService)
         {
             this.settingsSession = settingsSession ?? throw new ArgumentNullException(nameof(settingsSession));
-            this.localizationContext = localizationContext ?? throw new ArgumentNullException(nameof(localizationContext));
-            this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
-            this.desktopSessionCoordinator = desktopSessionCoordinator ?? throw new ArgumentNullException(nameof(desktopSessionCoordinator));
+            this.managedDesktopRuntime = managedDesktopRuntime ?? throw new ArgumentNullException(nameof(managedDesktopRuntime));
             this.desktopMonitoringService = desktopMonitoringService ?? throw new ArgumentNullException(nameof(desktopMonitoringService));
             this.refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
-            this.notifyIconService = notifyIconService ?? throw new ArgumentNullException(nameof(notifyIconService));
-            this.globalHotKeyService = globalHotKeyService ?? throw new ArgumentNullException(nameof(globalHotKeyService));
-            this.numericTabHotKeyService = numericTabHotKeyService ?? throw new ArgumentNullException(nameof(numericTabHotKeyService));
-            this.managedGroupDragDropTargetRegistry = managedGroupDragDropTargetRegistry ?? throw new ArgumentNullException(nameof(managedGroupDragDropTargetRegistry));
-            this.managedGroupStripRegistry = managedGroupStripRegistry ?? throw new ArgumentNullException(nameof(managedGroupStripRegistry));
+            this.startupComponentStatusService = startupComponentStatusService ?? throw new ArgumentNullException(nameof(startupComponentStatusService));
+            var checkedNotifyIconService = notifyIconService ?? throw new ArgumentNullException(nameof(notifyIconService));
+            var checkedGlobalHotKeyService = globalHotKeyService ?? throw new ArgumentNullException(nameof(globalHotKeyService));
+            var checkedNumericTabHotKeyService = numericTabHotKeyService ?? throw new ArgumentNullException(nameof(numericTabHotKeyService));
+            var checkedManagedGroupDragDropTargetRegistry =
+                managedGroupDragDropTargetRegistryLifecycleService ?? throw new ArgumentNullException(nameof(managedGroupDragDropTargetRegistryLifecycleService));
+            var checkedManagedGroupStripRegistry =
+                managedGroupStripRegistryLifecycleService ?? throw new ArgumentNullException(nameof(managedGroupStripRegistryLifecycleService));
+
+            failSoftShellParticipants = new[]
+            {
+                BootstrapParticipant.Create("NotifyIconService", checkedNotifyIconService.Initialize),
+                BootstrapParticipant.Create("GlobalHotKeyService", checkedGlobalHotKeyService.Initialize),
+                BootstrapParticipant.Create("NumericTabHotKeyService", checkedNumericTabHotKeyService.Initialize),
+            };
+            failSoftUiRegistryParticipants = new[]
+            {
+                BootstrapParticipant.Create("ManagedGroupDragDropTargetRegistry", checkedManagedGroupDragDropTargetRegistry.Initialize),
+                BootstrapParticipant.Create("ManagedGroupStripRegistry", checkedManagedGroupStripRegistry.Initialize),
+            };
+            shutdownParticipants = new[]
+            {
+                ShutdownParticipant.Create("ManagedDesktopRuntime", SaveRuntimeState),
+                ShutdownParticipant.Create("ManagedGroupDragDropTargetRegistry", checkedManagedGroupDragDropTargetRegistry.Dispose),
+                ShutdownParticipant.Create("ManagedGroupStripRegistry", checkedManagedGroupStripRegistry.Dispose),
+                ShutdownParticipant.Create("NotifyIconService", checkedNotifyIconService.Dispose),
+                ShutdownParticipant.Create("GlobalHotKeyService", checkedGlobalHotKeyService.Dispose),
+                ShutdownParticipant.Create("NumericTabHotKeyService", checkedNumericTabHotKeyService.Dispose),
+            };
         }
 
         public void Initialize()
@@ -52,34 +69,116 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
+            startupComponentStatusService.Clear();
+            // Core state is required before any shell/UI participant can run.
+            InitializeCoreState();
             initialized = true;
-            localizationContext.Initialize(settingsSession.Current.LanguageName);
-            refreshCoordinator.SetRefreshAction(() => desktopMonitoringService.RefreshNow("program-refresher"));
-            Application.ApplicationExit += OnApplicationExit;
-            notifyIconService.Initialize();
-            globalHotKeyService.Initialize();
-            numericTabHotKeyService.Initialize();
-            managedGroupDragDropTargetRegistry.Initialize();
-            managedGroupStripRegistry.Initialize();
-
-            if (desktopRuntime is IDesktopRuntimeBootstrapper runtimeBootstrapper)
-            {
-                runtimeBootstrapper.Initialize(desktopSessionCoordinator, desktopMonitoringService);
-            }
+            InitializeFailSoftParticipants(failSoftShellParticipants);
+            InitializeFailSoftParticipants(failSoftUiRegistryParticipants);
+            InitializeDesktopRuntime();
         }
 
         private void OnApplicationExit(object sender, EventArgs e)
         {
-            if (desktopRuntime is IDesktopRuntimeStatePersistence statePersistence)
+            // Shutdown is best-effort: persist first, then release UI/shell resources even if one step fails.
+            RunShutdownParticipants();
+        }
+
+        private void InitializeCoreState()
+        {
+            LocalizationService.Initialize(settingsSession.Current.LanguageName);
+            refreshCoordinator.SetRefreshAction(() => desktopMonitoringService.RefreshNow("program-refresher"));
+            Application.ApplicationExit += OnApplicationExit;
+        }
+
+        private void InitializeDesktopRuntime()
+        {
+            TryInitialize(
+                "ManagedDesktopRuntime",
+                managedDesktopRuntime.Initialize);
+        }
+
+        private void InitializeFailSoftParticipants(BootstrapParticipant[] participants)
+        {
+            foreach (var participant in participants)
             {
-                statePersistence.SaveState();
+                TryInitialize(participant.Name, participant.Execute);
+            }
+        }
+
+        private void SaveRuntimeState()
+        {
+            managedDesktopRuntime.SaveState();
+        }
+
+        private void RunShutdownParticipants()
+        {
+            foreach (var participant in shutdownParticipants)
+            {
+                TryRunOnExit(participant.Name, participant.Execute);
+            }
+        }
+
+        private void TryRunOnExit(string componentName, Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception exception)
+            {
+                UnhandledExceptionLogger.Log(exception, "AppBootstrapper.OnApplicationExit." + componentName);
+            }
+        }
+
+        private void TryInitialize(string componentName, Action initialize)
+        {
+            try
+            {
+                initialize();
+                startupComponentStatusService.MarkHealthy(componentName);
+            }
+            catch (Exception exception)
+            {
+                startupComponentStatusService.MarkFailed(componentName, exception);
+                UnhandledExceptionLogger.Log(exception, "AppBootstrapper." + componentName);
+            }
+        }
+
+        private sealed class BootstrapParticipant
+        {
+            private BootstrapParticipant(string name, Action execute)
+            {
+                Name = name;
+                Execute = execute;
             }
 
-            notifyIconService.Dispose();
-            globalHotKeyService.Dispose();
-            numericTabHotKeyService.Dispose();
-            managedGroupDragDropTargetRegistry.Dispose();
-            managedGroupStripRegistry.Dispose();
+            public string Name { get; }
+
+            public Action Execute { get; }
+
+            public static BootstrapParticipant Create(string name, Action execute)
+            {
+                return new BootstrapParticipant(name, execute);
+            }
+        }
+
+        private sealed class ShutdownParticipant
+        {
+            private ShutdownParticipant(string name, Action execute)
+            {
+                Name = name;
+                Execute = execute;
+            }
+
+            public string Name { get; }
+
+            public Action Execute { get; }
+
+            public static ShutdownParticipant Create(string name, Action execute)
+            {
+                return new ShutdownParticipant(name, execute);
+            }
         }
     }
 }

@@ -52,19 +52,23 @@ namespace WindowTabs.CSharp.Services
         public bool TryResolveDropTarget(
             Point clientPoint,
             IReadOnlyList<IntPtr> currentGroupWindowHandles,
-            IReadOnlyDictionary<IntPtr, Rectangle> buttonBoundsByHandle,
+            IReadOnlyDictionary<IntPtr, ManagedGroupStripButtonState> buttonStates,
             Rectangle displayRectangle,
             out ManagedGroupStripDropTargetInfo dropTargetInfo)
         {
             if (currentGroupWindowHandles != null)
             {
-                foreach (var windowHandle in currentGroupWindowHandles)
+                for (var index = 0; index < currentGroupWindowHandles.Count; index++)
                 {
-                    if (!buttonBoundsByHandle.TryGetValue(windowHandle, out var bounds) || !bounds.Contains(clientPoint))
+                    var windowHandle = currentGroupWindowHandles[index];
+                    if (buttonStates == null
+                        || !buttonStates.TryGetValue(windowHandle, out var buttonState)
+                        || !buttonState.Button.Bounds.Contains(clientPoint))
                     {
                         continue;
                     }
 
+                    var bounds = buttonState.Button.Bounds;
                     var insertAfter = clientPoint.X >= bounds.Left + (bounds.Width / 2);
                     if (insertAfter)
                     {
@@ -72,33 +76,37 @@ namespace WindowTabs.CSharp.Services
                         return true;
                     }
 
-                    var targetIndex = FindIndex(currentGroupWindowHandles, windowHandle);
                     dropTargetInfo = new ManagedGroupStripDropTargetInfo(
                         windowHandle,
-                        targetIndex > 0 ? currentGroupWindowHandles[targetIndex - 1] : (IntPtr?)null);
+                        index > 0 ? currentGroupWindowHandles[index - 1] : (IntPtr?)null);
                     return true;
                 }
             }
 
-            var orderedButtons = currentGroupWindowHandles?
-                .Where(buttonBoundsByHandle.ContainsKey)
-                .Select(handle => new KeyValuePair<IntPtr, Rectangle>(handle, buttonBoundsByHandle[handle]))
-                .ToList()
-                ?? new List<KeyValuePair<IntPtr, Rectangle>>();
-
-            if (orderedButtons.Count > 0 && displayRectangle.Contains(clientPoint))
+            if (currentGroupWindowHandles != null
+                && currentGroupWindowHandles.Count > 0
+                && displayRectangle.Contains(clientPoint))
             {
-                var firstButton = orderedButtons[0].Value;
+                if (!TryGetButtonBounds(currentGroupWindowHandles, buttonStates, 0, out var firstHandle, out var firstButton))
+                {
+                    dropTargetInfo = default;
+                    return false;
+                }
+
                 if (clientPoint.X < firstButton.Left)
                 {
-                    dropTargetInfo = new ManagedGroupStripDropTargetInfo(orderedButtons[0].Key, null);
+                    dropTargetInfo = new ManagedGroupStripDropTargetInfo(firstHandle, null);
                     return true;
                 }
 
-                for (var index = 1; index < orderedButtons.Count; index++)
+                for (var index = 1; index < currentGroupWindowHandles.Count; index++)
                 {
-                    var previousButton = orderedButtons[index - 1].Value;
-                    var nextButton = orderedButtons[index].Value;
+                    if (!TryGetButtonBounds(currentGroupWindowHandles, buttonStates, index - 1, out var previousHandle, out var previousButton)
+                        || !TryGetButtonBounds(currentGroupWindowHandles, buttonStates, index, out var nextHandle, out var nextButton))
+                    {
+                        continue;
+                    }
+
                     if (clientPoint.X <= previousButton.Right || clientPoint.X >= nextButton.Left)
                     {
                         continue;
@@ -106,17 +114,22 @@ namespace WindowTabs.CSharp.Services
 
                     var midpoint = previousButton.Right + ((nextButton.Left - previousButton.Right) / 2);
                     dropTargetInfo = clientPoint.X <= midpoint
-                        ? new ManagedGroupStripDropTargetInfo(orderedButtons[index - 1].Key, orderedButtons[index - 1].Key)
-                        : new ManagedGroupStripDropTargetInfo(orderedButtons[index].Key, orderedButtons[index - 1].Key);
+                        ? new ManagedGroupStripDropTargetInfo(previousHandle, previousHandle)
+                        : new ManagedGroupStripDropTargetInfo(nextHandle, previousHandle);
                     return true;
                 }
 
-                var lastButton = orderedButtons[orderedButtons.Count - 1].Value;
-                if (clientPoint.X > lastButton.Right)
+                if (TryGetButtonBounds(
+                        currentGroupWindowHandles,
+                        buttonStates,
+                        currentGroupWindowHandles.Count - 1,
+                        out var lastHandle,
+                        out var lastButton)
+                    && clientPoint.X > lastButton.Right)
                 {
                     dropTargetInfo = new ManagedGroupStripDropTargetInfo(
-                        orderedButtons[orderedButtons.Count - 1].Key,
-                        orderedButtons[orderedButtons.Count - 1].Key);
+                        lastHandle,
+                        lastHandle);
                     return true;
                 }
             }
@@ -125,22 +138,32 @@ namespace WindowTabs.CSharp.Services
             return false;
         }
 
-        private static int FindIndex(IReadOnlyList<IntPtr> handles, IntPtr targetHandle)
+        private static bool TryGetButtonBounds(
+            IReadOnlyList<IntPtr> currentGroupWindowHandles,
+            IReadOnlyDictionary<IntPtr, ManagedGroupStripButtonState> buttonStates,
+            int index,
+            out IntPtr windowHandle,
+            out Rectangle bounds)
         {
-            if (handles == null)
+            windowHandle = IntPtr.Zero;
+            bounds = default;
+            if (currentGroupWindowHandles == null
+                || buttonStates == null
+                || index < 0
+                || index >= currentGroupWindowHandles.Count)
             {
-                return -1;
+                return false;
             }
 
-            for (var index = 0; index < handles.Count; index++)
+            windowHandle = currentGroupWindowHandles[index];
+            if (!buttonStates.TryGetValue(windowHandle, out var buttonState))
             {
-                if (handles[index] == targetHandle)
-                {
-                    return index;
-                }
+                windowHandle = IntPtr.Zero;
+                return false;
             }
 
-            return -1;
+            bounds = buttonState.Button.Bounds;
+            return true;
         }
     }
 }

@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.RegularExpressions;
-using Newtonsoft.Json.Linq;
 using WindowTabs.CSharp.Contracts;
 using WindowTabs.CSharp.Models;
 
@@ -11,37 +9,38 @@ namespace WindowTabs.CSharp.Services
     internal sealed class WorkspaceLayoutsService
     {
         private readonly SettingsStore settingsStore;
+        private readonly DesktopWindowCatalogService desktopWindowCatalogService;
         private readonly DesktopSnapshotService desktopSnapshotService;
-        private readonly FilterService filterService;
         private readonly IDesktopRuntime desktopRuntime;
+        private readonly GroupMembershipService groupMembershipService;
         private readonly DesktopMonitoringService desktopMonitoringService;
+        private readonly WorkspaceWindowMatchService workspaceWindowMatchService;
+        private readonly WorkspaceLayoutSerializationService workspaceLayoutSerializationService;
 
         public WorkspaceLayoutsService(
             SettingsStore settingsStore,
+            DesktopWindowCatalogService desktopWindowCatalogService,
             DesktopSnapshotService desktopSnapshotService,
-            FilterService filterService,
             IDesktopRuntime desktopRuntime,
-            DesktopMonitoringService desktopMonitoringService)
+            GroupMembershipService groupMembershipService,
+            DesktopMonitoringService desktopMonitoringService,
+            WorkspaceWindowMatchService workspaceWindowMatchService,
+            WorkspaceLayoutSerializationService workspaceLayoutSerializationService)
         {
             this.settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
+            this.desktopWindowCatalogService = desktopWindowCatalogService ?? throw new ArgumentNullException(nameof(desktopWindowCatalogService));
             this.desktopSnapshotService = desktopSnapshotService ?? throw new ArgumentNullException(nameof(desktopSnapshotService));
-            this.filterService = filterService ?? throw new ArgumentNullException(nameof(filterService));
             this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
+            this.groupMembershipService = groupMembershipService ?? throw new ArgumentNullException(nameof(groupMembershipService));
             this.desktopMonitoringService = desktopMonitoringService ?? throw new ArgumentNullException(nameof(desktopMonitoringService));
+            this.workspaceWindowMatchService = workspaceWindowMatchService ?? throw new ArgumentNullException(nameof(workspaceWindowMatchService));
+            this.workspaceLayoutSerializationService = workspaceLayoutSerializationService ?? throw new ArgumentNullException(nameof(workspaceLayoutSerializationService));
         }
 
         public IReadOnlyList<WorkspaceLayout> LoadLayouts()
         {
             var root = settingsStore.LoadRawRoot();
-            if (!(root["workspaces"] is JArray workspacesArray))
-            {
-                return Array.Empty<WorkspaceLayout>();
-            }
-
-            return workspacesArray
-                .OfType<JObject>()
-                .Select(DeserializeWorkspace)
-                .ToList();
+            return workspaceLayoutSerializationService.DeserializeWorkspaces(root["workspaces"]);
         }
 
         public WorkspaceLayout CreateFromCurrentDesktop()
@@ -57,11 +56,7 @@ namespace WindowTabs.CSharp.Services
                 }
             }
 
-            var layoutToAdd = new WorkspaceLayout
-            {
-                Name = "Workspace " + nextNumber
-            };
-
+            var groupLayouts = new List<WorkspaceGroupLayout>();
             var groups = desktopRuntime.Groups.ToList();
             for (var groupIndex = 0; groupIndex < groups.Count; groupIndex++)
             {
@@ -73,27 +68,28 @@ namespace WindowTabs.CSharp.Services
 
                 var firstWindowHandle = runtimeGroup.WindowHandles[0];
                 var placement = NativeWindowApi.GetWindowPlacementValue(firstWindowHandle);
-                var groupLayout = new WorkspaceGroupLayout
-                {
-                    Name = "Group " + (groupIndex + 1),
-                    Placement = placement
-                };
+                var windowLayouts = new List<WorkspaceWindowLayout>();
 
                 for (var windowIndex = 0; windowIndex < runtimeGroup.WindowHandles.Count; windowIndex++)
                 {
                     var handle = runtimeGroup.WindowHandles[windowIndex];
                     var snapshot = desktopSnapshotService.CreateWindowSnapshot(handle);
-                    groupLayout.Windows.Add(new WorkspaceWindowLayout
-                    {
-                        Name = snapshot.Process.ExeName,
-                        Title = snapshot.Text ?? string.Empty,
-                        ZOrder = windowIndex,
-                        MatchType = WorkspaceWindowMatchType.ExactMatch
-                    });
+                    windowLayouts.Add(new WorkspaceWindowLayout(
+                        snapshot.Process.ExeName,
+                        snapshot.Text ?? string.Empty,
+                        windowIndex,
+                        WorkspaceWindowMatchType.ExactMatch));
                 }
 
-                layoutToAdd.Groups.Add(groupLayout);
+                groupLayouts.Add(new WorkspaceGroupLayout(
+                    "Group " + (groupIndex + 1),
+                    placement,
+                    windowLayouts));
             }
+
+            var layoutToAdd = new WorkspaceLayout(
+                "Workspace " + nextNumber,
+                groupLayouts);
 
             var updatedLayouts = layouts.ToList();
             updatedLayouts.Insert(0, layoutToAdd);
@@ -134,18 +130,13 @@ namespace WindowTabs.CSharp.Services
 
                     foreach (var handle in handles)
                     {
-                        desktopRuntime.RemoveWindow(handle);
+                        groupMembershipService.RemoveWindow(handle);
                         NativeWindowApi.RestoreWindow(handle);
                         ApplyPlacement(handle, groupLayout.Placement);
                     }
 
                     ApplyZOrder(handles);
-
-                    var runtimeGroup = desktopRuntime.CreateGroup(null);
-                    foreach (var handle in handles)
-                    {
-                        runtimeGroup.AddWindow(handle, null);
-                    }
+                    groupMembershipService.CreateGroupWithWindows(handles, null);
                 }
             }
 
@@ -154,11 +145,7 @@ namespace WindowTabs.CSharp.Services
 
         private IReadOnlyList<WindowSnapshot> GetRestorableWindows()
         {
-            var screenRegion = desktopSnapshotService.GetScreenRegion();
-            return desktopSnapshotService
-                .EnumerateWindowsInZOrder()
-                .Where(window => filterService.IsAppWindow(window, screenRegion))
-                .ToList();
+            return desktopWindowCatalogService.GetRestorableWindowsInZOrder();
         }
 
         private List<IntPtr> ResolveWindowHandles(WorkspaceGroupLayout groupLayout, IReadOnlyList<WindowSnapshot> windowsInZOrder)
@@ -170,7 +157,7 @@ namespace WindowTabs.CSharp.Services
             {
                 var handle = windowsInZOrder
                     .Where(window => availableHandles.Contains(window.Handle))
-                    .FirstOrDefault(window => IsMatch(window.Text ?? string.Empty, windowLayout))
+                    .FirstOrDefault(window => workspaceWindowMatchService.IsMatch(window, windowLayout))
                     ?.Handle ?? IntPtr.Zero;
                 if (handle == IntPtr.Zero)
                 {
@@ -182,32 +169,6 @@ namespace WindowTabs.CSharp.Services
             }
 
             return result;
-        }
-
-        private static bool IsMatch(string title, WorkspaceWindowLayout windowLayout)
-        {
-            switch (windowLayout.MatchType)
-            {
-                case WorkspaceWindowMatchType.ExactMatch:
-                    return string.Equals(title, windowLayout.Title, StringComparison.Ordinal);
-                case WorkspaceWindowMatchType.StartsWith:
-                    return title.StartsWith(windowLayout.Title ?? string.Empty, StringComparison.Ordinal);
-                case WorkspaceWindowMatchType.EndsWith:
-                    return title.EndsWith(windowLayout.Title ?? string.Empty, StringComparison.Ordinal);
-                case WorkspaceWindowMatchType.Contains:
-                    return title.Contains(windowLayout.Title ?? string.Empty);
-                case WorkspaceWindowMatchType.RegEx:
-                    try
-                    {
-                        return Regex.IsMatch(title, windowLayout.Title ?? string.Empty);
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-                default:
-                    return false;
-            }
         }
 
         private static void ApplyPlacement(IntPtr handle, WindowPlacementValue placement)
@@ -228,146 +189,8 @@ namespace WindowTabs.CSharp.Services
         private void SaveLayouts(IReadOnlyList<WorkspaceLayout> layouts)
         {
             var root = settingsStore.LoadRawRoot();
-            root["workspaces"] = new JArray(layouts.Select(SerializeWorkspace));
+            root["workspaces"] = workspaceLayoutSerializationService.SerializeWorkspaces(layouts);
             settingsStore.SaveRawRoot(root);
         }
-
-        private static JObject SerializeWorkspace(WorkspaceLayout workspace)
-        {
-            return new JObject
-            {
-                ["name"] = workspace.Name,
-                ["groups"] = new JArray(workspace.Groups.Select(SerializeGroup))
-            };
-        }
-
-        private static JObject SerializeGroup(WorkspaceGroupLayout group)
-        {
-            return new JObject
-            {
-                ["name"] = group.Name,
-                ["placement"] = SerializePlacement(group.Placement),
-                ["windows"] = new JArray(group.Windows.Select(SerializeWindow))
-            };
-        }
-
-        private static JObject SerializePlacement(WindowPlacementValue placement)
-        {
-            return new JObject
-            {
-                ["showCmd"] = placement.ShowCommand,
-                ["ptMaxPosition"] = SerializePoint(placement.MaxPosition),
-                ["ptMinPosition"] = SerializePoint(placement.MinPosition),
-                ["rcNormalPosition"] = SerializeRect(placement.NormalPosition)
-            };
-        }
-
-        private static JObject SerializePoint(PointValue point)
-        {
-            return new JObject
-            {
-                ["x"] = point.X,
-                ["y"] = point.Y
-            };
-        }
-
-        private static JObject SerializeRect(RectValue rect)
-        {
-            return new JObject
-            {
-                ["x"] = rect.X,
-                ["y"] = rect.Y,
-                ["width"] = rect.Width,
-                ["height"] = rect.Height
-            };
-        }
-
-        private static JObject SerializeWindow(WorkspaceWindowLayout window)
-        {
-            return new JObject
-            {
-                ["name"] = window.Name,
-                ["title"] = window.Title,
-                ["zorder"] = window.ZOrder,
-                ["matchType"] = (int)window.MatchType
-            };
-        }
-
-        private static WorkspaceLayout DeserializeWorkspace(JObject workspace)
-        {
-            return new WorkspaceLayout
-            {
-                Name = workspace["name"]?.ToString() ?? string.Empty,
-                Groups = workspace["groups"] is JArray groups
-                    ? groups.OfType<JObject>().Select(DeserializeGroup).ToList()
-                    : new List<WorkspaceGroupLayout>()
-            };
-        }
-
-        private static WorkspaceGroupLayout DeserializeGroup(JObject group)
-        {
-            return new WorkspaceGroupLayout
-            {
-                Name = group["name"]?.ToString() ?? string.Empty,
-                Placement = group["placement"] is JObject placement ? DeserializePlacement(placement) : new WindowPlacementValue(),
-                Windows = group["windows"] is JArray windows
-                    ? windows.OfType<JObject>().Select(DeserializeWindow).ToList()
-                    : new List<WorkspaceWindowLayout>()
-            };
-        }
-
-        private static WindowPlacementValue DeserializePlacement(JObject placement)
-        {
-            return new WindowPlacementValue
-            {
-                Flags = 0,
-                ShowCommand = placement["showCmd"]?.Value<int>() ?? NativeWindowApi.SwRestore,
-                MaxPosition = DeserializePoint(placement["ptMaxPosition"] as JObject),
-                MinPosition = DeserializePoint(placement["ptMinPosition"] as JObject),
-                NormalPosition = DeserializeRect(placement["rcNormalPosition"] as JObject)
-            };
-        }
-
-        private static PointValue DeserializePoint(JObject point)
-        {
-            if (point == null)
-            {
-                return new PointValue();
-            }
-
-            return new PointValue
-            {
-                X = point["x"]?.Value<int>() ?? 0,
-                Y = point["y"]?.Value<int>() ?? 0
-            };
-        }
-
-        private static RectValue DeserializeRect(JObject rect)
-        {
-            if (rect == null)
-            {
-                return new RectValue();
-            }
-
-            return new RectValue
-            {
-                X = rect["x"]?.Value<int>() ?? 0,
-                Y = rect["y"]?.Value<int>() ?? 0,
-                Width = rect["width"]?.Value<int>() ?? 0,
-                Height = rect["height"]?.Value<int>() ?? 0
-            };
-        }
-
-        private static WorkspaceWindowLayout DeserializeWindow(JObject window)
-        {
-            return new WorkspaceWindowLayout
-            {
-                Name = window["name"]?.ToString() ?? string.Empty,
-                Title = window["title"]?.ToString() ?? string.Empty,
-                ZOrder = window["zorder"]?.Value<int>() ?? 0,
-                MatchType = (WorkspaceWindowMatchType)(window["matchType"]?.Value<int>() ?? 0)
-            };
-        }
-
     }
 }

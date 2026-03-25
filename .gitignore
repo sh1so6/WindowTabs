@@ -1,6 +1,6 @@
 *.sdf
 /UpgradeLog.htm
-.vs/WindowTabs/
+.vs/
 .claude
 *.wixpdb
 
@@ -11,8 +11,17 @@ packages/
 # Build artifacts (intermediate files and outputs)
 # Note: exe/ folder contains intentional build outputs for distribution
 **/obj/
+**/_net8_obj/
+**/_nolegacy_obj/
+**/artifacts/
 **/bin/Debug/
 **/bin/Release/
 **/bin/Any CPU/
 *.pdb
 /exe/
+/Aga.Controls.dll
+/Interop.SHDocVw.dll
+/Interop.Shell32.dll
+/Newtonsoft.Json.dll
+/docs
+/issues

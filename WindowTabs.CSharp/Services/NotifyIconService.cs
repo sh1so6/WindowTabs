@@ -5,13 +5,11 @@ using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
 using Newtonsoft.Json.Linq;
-using WindowTabs.CSharp.Contracts;
 
 namespace WindowTabs.CSharp.Services
 {
     internal sealed class NotifyIconService : IDisposable
     {
-        private readonly ILocalizationContext localizationContext;
         private readonly SettingsSession settingsSession;
         private readonly ManagerViewRequestDispatcher managerViewRequestDispatcher;
         private readonly RefreshCoordinator refreshCoordinator;
@@ -19,12 +17,11 @@ namespace WindowTabs.CSharp.Services
         private readonly AppBehaviorState appBehaviorState;
         private readonly AppRestartService appRestartService;
         private NotifyIcon notifyIcon;
-        private ContextMenu contextMenu;
+        private ContextMenuStrip contextMenu;
         private bool isInitialized;
         private bool isDisposed;
 
         public NotifyIconService(
-            ILocalizationContext localizationContext,
             SettingsSession settingsSession,
             ManagerViewRequestDispatcher managerViewRequestDispatcher,
             RefreshCoordinator refreshCoordinator,
@@ -32,7 +29,6 @@ namespace WindowTabs.CSharp.Services
             AppBehaviorState appBehaviorState,
             AppRestartService appRestartService)
         {
-            this.localizationContext = localizationContext ?? throw new ArgumentNullException(nameof(localizationContext));
             this.settingsSession = settingsSession ?? throw new ArgumentNullException(nameof(settingsSession));
             this.managerViewRequestDispatcher = managerViewRequestDispatcher ?? throw new ArgumentNullException(nameof(managerViewRequestDispatcher));
             this.refreshCoordinator = refreshCoordinator ?? throw new ArgumentNullException(nameof(refreshCoordinator));
@@ -52,14 +48,14 @@ namespace WindowTabs.CSharp.Services
             notifyIcon = new NotifyIcon
             {
                 Visible = true,
-                Text = "WindowTabs C# Migration",
+                Text = "WindowTabs",
                 Icon = LoadApplicationIcon()
             };
             notifyIcon.DoubleClick += OnNotifyIconDoubleClick;
 
-            contextMenu = new ContextMenu();
-            contextMenu.Popup += OnContextMenuPopup;
-            notifyIcon.ContextMenu = contextMenu;
+            contextMenu = new ContextMenuStrip();
+            contextMenu.Opening += OnContextMenuOpening;
+            notifyIcon.ContextMenuStrip = contextMenu;
 
             RebuildMenu();
         }
@@ -74,7 +70,8 @@ namespace WindowTabs.CSharp.Services
             isDisposed = true;
             if (contextMenu != null)
             {
-                contextMenu.Popup -= OnContextMenuPopup;
+                contextMenu.Opening -= OnContextMenuOpening;
+                contextMenu.Dispose();
             }
 
             if (notifyIcon != null)
@@ -90,7 +87,7 @@ namespace WindowTabs.CSharp.Services
             managerViewRequestDispatcher.RequestShow();
         }
 
-        private void OnContextMenuPopup(object sender, EventArgs e)
+        private void OnContextMenuOpening(object sender, System.ComponentModel.CancelEventArgs e)
         {
             RebuildMenu();
         }
@@ -102,43 +99,43 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
-            contextMenu.MenuItems.Clear();
-            var settingsItem = CreateMenuItem(localizationContext.GetString("Settings"), (_, __) => managerViewRequestDispatcher.RequestShow());
+            contextMenu.Items.Clear();
+            var settingsItem = CreateMenuItem(LocalizationService.GetString("Settings"), (_, __) => managerViewRequestDispatcher.RequestShow());
             settingsItem.Enabled = !appBehaviorState.IsDisabled;
-            contextMenu.MenuItems.Add(settingsItem);
-            contextMenu.MenuItems.Add(CreateLanguageMenu());
-            contextMenu.MenuItems.Add("-");
-            contextMenu.MenuItems.Add(CreateMenuItem("Refresh", (_, __) => refreshCoordinator.Refresh()));
-            var disableItem = CreateMenuItem(localizationContext.GetString("Disable"), (_, __) => ToggleDisabled());
+            contextMenu.Items.Add(settingsItem);
+            contextMenu.Items.Add(CreateLanguageMenu());
+            contextMenu.Items.Add(new ToolStripSeparator());
+            contextMenu.Items.Add(CreateMenuItem("Refresh", (_, __) => refreshCoordinator.Refresh()));
+            var disableItem = CreateMenuItem(LocalizationService.GetString("Disable"), (_, __) => ToggleDisabled());
             disableItem.Checked = appBehaviorState.IsDisabled;
-            contextMenu.MenuItems.Add(disableItem);
-            contextMenu.MenuItems.Add("-");
-            contextMenu.MenuItems.Add(CreateMenuItem(localizationContext.GetString("RestartWindowTabs"), (_, __) => appRestartService.Restart()));
-            contextMenu.MenuItems.Add(CreateMenuItem(localizationContext.GetString("CloseWindowTabs"), (_, __) => appLifecycleState.RequestExit()));
+            contextMenu.Items.Add(disableItem);
+            contextMenu.Items.Add(new ToolStripSeparator());
+            contextMenu.Items.Add(CreateMenuItem(LocalizationService.GetString("RestartWindowTabs"), (_, __) => appRestartService.Restart()));
+            contextMenu.Items.Add(CreateMenuItem(LocalizationService.GetString("CloseWindowTabs"), (_, __) => appLifecycleState.RequestExit()));
         }
 
-        private MenuItem CreateLanguageMenu()
+        private ToolStripMenuItem CreateLanguageMenu()
         {
-            var languageMenu = new MenuItem(localizationContext.GetString("Language"));
+            var languageMenu = new ToolStripMenuItem(LocalizationService.GetString("Language"));
             foreach (var language in LoadLanguageList())
             {
-                var item = new MenuItem(language.DisplayName)
+                var item = new ToolStripMenuItem(language.DisplayName)
                 {
-                    Checked = string.Equals(localizationContext.CurrentLanguage, language.FileName, StringComparison.OrdinalIgnoreCase),
-                    Enabled = !string.Equals(localizationContext.CurrentLanguage, language.FileName, StringComparison.OrdinalIgnoreCase)
+                    Checked = string.Equals(LocalizationService.CurrentLanguage, language.FileName, StringComparison.OrdinalIgnoreCase),
+                    Enabled = !string.Equals(LocalizationService.CurrentLanguage, language.FileName, StringComparison.OrdinalIgnoreCase)
                 };
                 item.Click += (_, __) => ChangeLanguage(language.FileName);
-                languageMenu.MenuItems.Add(item);
+                languageMenu.DropDownItems.Add(item);
             }
 
-            languageMenu.Enabled = languageMenu.MenuItems.Count > 0;
+            languageMenu.Enabled = languageMenu.DropDownItems.Count > 0;
             return languageMenu;
         }
 
         private void ChangeLanguage(string languageName)
         {
             settingsSession.Update(snapshot => snapshot.LanguageName = languageName);
-            localizationContext.SetLanguage(languageName);
+            LocalizationService.SetLanguage(languageName);
             refreshCoordinator.Refresh();
             managerViewRequestDispatcher.RequestShow();
         }
@@ -149,9 +146,9 @@ namespace WindowTabs.CSharp.Services
             refreshCoordinator.Refresh();
         }
 
-        private static MenuItem CreateMenuItem(string text, EventHandler onClick)
+        private static ToolStripMenuItem CreateMenuItem(string text, EventHandler onClick)
         {
-            var item = new MenuItem(text);
+            var item = new ToolStripMenuItem(text);
             item.Click += onClick;
             return item;
         }

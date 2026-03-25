@@ -8,17 +8,17 @@ namespace WindowTabs.CSharp.Services
     internal sealed class ManagedGroupDragDropTarget : IDragDropTarget
     {
         private readonly IntPtr targetWindowHandle;
-        private readonly IDesktopRuntime desktopRuntime;
-        private readonly IProgramRefresher refresher;
+        private readonly GroupMutationService groupMutationService;
+        private readonly GroupMembershipService groupMembershipService;
 
         public ManagedGroupDragDropTarget(
             IntPtr targetWindowHandle,
-            IDesktopRuntime desktopRuntime,
-            IProgramRefresher refresher)
+            GroupMutationService groupMutationService,
+            GroupMembershipService groupMembershipService)
         {
             this.targetWindowHandle = targetWindowHandle;
-            this.desktopRuntime = desktopRuntime ?? throw new ArgumentNullException(nameof(desktopRuntime));
-            this.refresher = refresher ?? throw new ArgumentNullException(nameof(refresher));
+            this.groupMutationService = groupMutationService ?? throw new ArgumentNullException(nameof(groupMutationService));
+            this.groupMembershipService = groupMembershipService ?? throw new ArgumentNullException(nameof(groupMembershipService));
         }
 
         public bool OnDragEnter(object data, Point clientPoint)
@@ -42,23 +42,7 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
-            var targetGroup = desktopRuntime.FindGroupContainingWindow(targetWindowHandle);
-            if (targetGroup == null)
-            {
-                return;
-            }
-
-            var sourceGroup = desktopRuntime.FindGroupContainingWindow(dragInfo.WindowHandle);
-            if (sourceGroup != null && sourceGroup.GroupHandle == targetGroup.GroupHandle)
-            {
-                targetGroup.MoveWindowAfter(dragInfo.WindowHandle, targetWindowHandle);
-                refresher.Refresh();
-                return;
-            }
-
-            desktopRuntime.RemoveWindow(dragInfo.WindowHandle);
-            targetGroup.AddWindow(dragInfo.WindowHandle, targetWindowHandle);
-            refresher.Refresh();
+            groupMutationService.MoveWindowRelativeToWindow(dragInfo.WindowHandle, targetWindowHandle, targetWindowHandle);
         }
 
         public void OnDragExit()
@@ -85,7 +69,7 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
 
-            return desktopRuntime.FindGroupContainingWindow(targetWindowHandle) != null;
+            return groupMembershipService.GetGroupHandleContainingWindow(targetWindowHandle).HasValue;
         }
     }
 }

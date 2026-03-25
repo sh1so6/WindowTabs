@@ -11,18 +11,32 @@ namespace WindowTabs.CSharp
         [STAThread]
         private static void Main()
         {
+            UnhandledExceptionLogger.Initialize();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            using var serviceProvider = new ServiceCollection()
-                .AddWindowTabsMigrationServices()
-                .BuildServiceProvider();
-
-            serviceProvider.GetRequiredService<AppBootstrapper>().Initialize();
-
-            using (var form = serviceProvider.GetRequiredService<MigrationShellForm>())
+            try
             {
-                Application.Run(form);
+                using var serviceProvider = new ServiceCollection()
+                    .AddWindowTabsServices()
+                    .BuildServiceProvider();
+
+                serviceProvider.GetRequiredService<AppBootstrapper>().Initialize();
+
+                using (var form = serviceProvider.GetRequiredService<WindowTabsShellForm>())
+                {
+                    Application.Run(form);
+                }
+            }
+            catch (Exception exception)
+            {
+                UnhandledExceptionLogger.Log(exception, "Program.Main");
+                MessageBox.Show(
+                    "WindowTabs crashed.\r\n\r\nLog: " + UnhandledExceptionLogger.LogFilePath,
+                    "WindowTabs",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                throw;
             }
         }
     }

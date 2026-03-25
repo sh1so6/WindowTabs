@@ -4,25 +4,23 @@ using System.Drawing;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using WindowTabs.CSharp.Contracts;
+using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
 {
     internal sealed class ManagedTabGroupPersistenceService
     {
         private readonly SettingsStore settingsStore;
-        private readonly DesktopSnapshotService desktopSnapshotService;
-        private readonly FilterService filterService;
+        private readonly DesktopWindowCatalogService desktopWindowCatalogService;
         private readonly WindowPresentationStateStore windowPresentationStateStore;
 
         public ManagedTabGroupPersistenceService(
             SettingsStore settingsStore,
-            DesktopSnapshotService desktopSnapshotService,
-            FilterService filterService,
+            DesktopWindowCatalogService desktopWindowCatalogService,
             WindowPresentationStateStore windowPresentationStateStore)
         {
             this.settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
-            this.desktopSnapshotService = desktopSnapshotService ?? throw new ArgumentNullException(nameof(desktopSnapshotService));
-            this.filterService = filterService ?? throw new ArgumentNullException(nameof(filterService));
+            this.desktopWindowCatalogService = desktopWindowCatalogService ?? throw new ArgumentNullException(nameof(desktopWindowCatalogService));
             this.windowPresentationStateStore = windowPresentationStateStore ?? throw new ArgumentNullException(nameof(windowPresentationStateStore));
         }
 
@@ -39,15 +37,8 @@ namespace WindowTabs.CSharp.Services
                 return;
             }
 
-            var windowsByHandle = desktopSnapshotService
-                .EnumerateWindowsInZOrder()
-                .Where(window =>
-                    window.Process != null &&
-                    !window.Process.IsCurrentProcess &&
-                    window.IsWindow &&
-                    filterService.IsAppWindowStyle(window) &&
-                    filterService.GetIsTabbingEnabledForProcess(window.Process.ProcessPath))
-                .ToDictionary(window => window.Handle, window => window);
+            var windowsByHandle = desktopWindowCatalogService.GetRestorableWindowsByHandle();
+            var assignedWindowHandles = new HashSet<IntPtr>();
 
             foreach (var groupToken in groupsArray.OfType<JToken>())
             {
@@ -57,45 +48,18 @@ namespace WindowTabs.CSharp.Services
                     continue;
                 }
 
-                var group = stateStore.CreateGroup(null);
-                if (groupToken is JObject groupObject)
+                var validHandles = CollectRestorableWindowHandles(
+                    windowsArray.OfType<JObject>(),
+                    windowsByHandle,
+                    assignedWindowHandles);
+                if (validHandles.Count == 0)
                 {
-                    var savedTabPosition = groupObject["tabPosition"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(savedTabPosition))
-                    {
-                        group.TabPosition = savedTabPosition;
-                    }
-
-                    if (groupObject["snapTabHeightMargin"]?.Type == JTokenType.Boolean)
-                    {
-                        group.SnapTabHeightMargin = (bool)groupObject["snapTabHeightMargin"];
-                    }
+                    continue;
                 }
 
-                foreach (var windowToken in windowsArray.OfType<JObject>())
-                {
-                    var hwndValue = windowToken["hwnd"]?.Type == JTokenType.Integer
-                        ? (long?)windowToken["hwnd"]
-                        : null;
-                    if (!hwndValue.HasValue)
-                    {
-                        continue;
-                    }
-
-                    var hwnd = new IntPtr(hwndValue.Value);
-                    if (!windowsByHandle.ContainsKey(hwnd))
-                    {
-                        continue;
-                    }
-
-                    RestoreWindowState(hwnd, windowToken);
-                    group.AddWindow(hwnd, null);
-                }
-
-                if (group.WindowHandles.Count == 0)
-                {
-                    stateStore.DestroyGroup(group.GroupHandle);
-                }
+                var preferredGroupHandle = TryGetPreferredGroupHandle(groupToken);
+                var group = stateStore.CreateGroupWithWindows(validHandles, preferredGroupHandle);
+                ApplySavedGroupState(groupToken as JObject, group);
             }
         }
 
@@ -159,6 +123,7 @@ namespace WindowTabs.CSharp.Services
 
                 groupsArray.Add(new JObject
                 {
+                    ["groupHandle"] = group.GroupHandle.ToInt64(),
                     ["windows"] = windowsArray,
                     ["tabPosition"] = group.TabPosition,
                     ["snapTabHeightMargin"] = group.SnapTabHeightMargin
@@ -167,6 +132,68 @@ namespace WindowTabs.CSharp.Services
 
             root["SavedTabGroupsForRestart"] = groupsArray;
             settingsStore.SaveRawRoot(root);
+        }
+
+        private static IntPtr? TryGetPreferredGroupHandle(JToken groupToken)
+        {
+            if (!(groupToken is JObject groupObject))
+            {
+                return null;
+            }
+
+            var value = groupObject["groupHandle"]?.Type == JTokenType.Integer
+                ? (long?)groupObject["groupHandle"]
+                : null;
+            return value.HasValue ? new IntPtr(value.Value) : (IntPtr?)null;
+        }
+
+        private static void ApplySavedGroupState(JObject groupObject, IWindowGroupRuntime group)
+        {
+            if (groupObject == null || group == null)
+            {
+                return;
+            }
+
+            var savedTabPosition = groupObject["tabPosition"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(savedTabPosition))
+            {
+                group.TabPosition = savedTabPosition;
+            }
+
+            if (groupObject["snapTabHeightMargin"]?.Type == JTokenType.Boolean)
+            {
+                group.SnapTabHeightMargin = (bool)groupObject["snapTabHeightMargin"];
+            }
+        }
+
+        private List<IntPtr> CollectRestorableWindowHandles(
+            IEnumerable<JObject> windows,
+            IReadOnlyDictionary<IntPtr, WindowSnapshot> windowsByHandle,
+            ISet<IntPtr> assignedWindowHandles)
+        {
+            var validHandles = new List<IntPtr>();
+            foreach (var windowToken in windows ?? Enumerable.Empty<JObject>())
+            {
+                var hwndValue = windowToken["hwnd"]?.Type == JTokenType.Integer
+                    ? (long?)windowToken["hwnd"]
+                    : null;
+                if (!hwndValue.HasValue)
+                {
+                    continue;
+                }
+
+                var hwnd = new IntPtr(hwndValue.Value);
+                if (!windowsByHandle.ContainsKey(hwnd) || assignedWindowHandles.Contains(hwnd))
+                {
+                    continue;
+                }
+
+                RestoreWindowState(hwnd, windowToken);
+                assignedWindowHandles.Add(hwnd);
+                validHandles.Add(hwnd);
+            }
+
+            return validHandles;
         }
 
         private void RestoreWindowState(IntPtr hwnd, JObject windowToken)

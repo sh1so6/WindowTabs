@@ -1,15 +1,34 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WindowTabs.CSharp.Models
 {
     internal sealed class DesktopRefreshResult
     {
-        public IReadOnlyList<WindowSnapshot> Windows { get; set; } = new WindowSnapshot[0];
+        public DesktopRefreshResult()
+            : this(Array.Empty<WindowSnapshot>(), new RectValue(), Array.Empty<GroupSnapshot>(), new DesktopPlan())
+        {
+        }
 
-        public RectValue ScreenRegion { get; set; } = new RectValue();
+        public DesktopRefreshResult(
+            IEnumerable<WindowSnapshot> windows,
+            RectValue screenRegion,
+            IEnumerable<GroupSnapshot> groups,
+            DesktopPlan plan)
+        {
+            Windows = (windows ?? Array.Empty<WindowSnapshot>()).ToArray();
+            ScreenRegion = screenRegion ?? new RectValue();
+            Groups = (groups ?? Array.Empty<GroupSnapshot>()).ToArray();
+            Plan = plan ?? new DesktopPlan();
+        }
 
-        public IReadOnlyList<GroupSnapshot> Groups { get; set; } = new GroupSnapshot[0];
+        public IReadOnlyList<WindowSnapshot> Windows { get; }
 
-        public DesktopPlan Plan { get; set; } = new DesktopPlan();
+        public RectValue ScreenRegion { get; }
+
+        public IReadOnlyList<GroupSnapshot> Groups { get; }
+
+        public DesktopPlan Plan { get; }
     }
 }

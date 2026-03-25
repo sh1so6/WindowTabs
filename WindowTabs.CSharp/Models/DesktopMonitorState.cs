@@ -24,11 +24,13 @@ namespace WindowTabs.CSharp.Models
 
         public string RuntimeKind { get; set; } = string.Empty;
 
-        public bool UsedRuntimeFallback { get; set; }
+        public bool IsShellHookAvailable { get; set; } = true;
 
-        public string RuntimeFallbackReason { get; set; } = string.Empty;
+        public string ShellHookError { get; set; } = string.Empty;
 
-        public string RuntimeFallbackExceptionType { get; set; } = string.Empty;
+        public bool IsWinEventMonitoringAvailable { get; set; } = true;
+
+        public string WinEventMonitoringError { get; set; } = string.Empty;
 
         public bool IsDisabled { get; set; }
     }

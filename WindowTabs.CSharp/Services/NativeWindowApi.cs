@@ -9,7 +9,7 @@ using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
 {
-    internal static class NativeWindowApi
+    internal static partial class NativeWindowApi
     {
         internal const int GwlHwndParent = -8;
         internal const int GwlStyle = -16;
@@ -34,6 +34,7 @@ namespace WindowTabs.CSharp.Services
         internal const int SwpNoZOrder = 0x0004;
         internal const int SwpNoActivate = 0x0010;
         internal const int SwpNoOwnerZOrder = 0x0200;
+        private const int WindowTextBufferLength = 256;
 
         private const uint GaRoot = 2;
         private const uint WM_SYSCOMMAND = 0x0112;
@@ -119,30 +120,34 @@ namespace WindowTabs.CSharp.Services
             return processId;
         }
 
-        public static string GetWindowClassName(IntPtr windowHandle)
+        public static unsafe string GetWindowClassName(IntPtr windowHandle)
         {
             if (windowHandle == IntPtr.Zero)
             {
                 return string.Empty;
             }
 
-            var builder = new System.Text.StringBuilder(256);
-            return GetClassName(windowHandle, builder, builder.Capacity) > 0
-                ? builder.ToString()
-                : string.Empty;
+            Span<char> buffer = stackalloc char[WindowTextBufferLength];
+            fixed (char* bufferPtr = buffer)
+            {
+                var length = GetClassName(windowHandle, bufferPtr, buffer.Length);
+                return length > 0 ? new string(bufferPtr, 0, length) : string.Empty;
+            }
         }
 
-        public static string GetWindowTextValue(IntPtr windowHandle)
+        public static unsafe string GetWindowTextValue(IntPtr windowHandle)
         {
             if (windowHandle == IntPtr.Zero)
             {
                 return string.Empty;
             }
 
-            var builder = new System.Text.StringBuilder(256);
-            return GetWindowText(windowHandle, builder, builder.Capacity) > 0
-                ? builder.ToString()
-                : string.Empty;
+            Span<char> buffer = stackalloc char[WindowTextBufferLength];
+            fixed (char* bufferPtr = buffer)
+            {
+                var length = GetWindowText(windowHandle, bufferPtr, buffer.Length);
+                return length > 0 ? new string(bufferPtr, 0, length) : string.Empty;
+            }
         }
 
         public static IntPtr GetWindowLongPtr(IntPtr windowHandle, int index)
@@ -354,109 +359,5 @@ namespace WindowTabs.CSharp.Services
         {
             return ReleaseCapture();
         }
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr WindowFromPoint(NativePoint point);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder className, int classNameSize);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
-
-        [DllImport("user32.dll", ExactSpelling = true)]
-        private static extern int GetWindowThreadProcessId(IntPtr handle, out int lpdwProcessId);
-
-        [DllImport("user32.dll", EntryPoint = "GetWindowLong", CharSet = CharSet.Auto)]
-        private static extern IntPtr GetWindowLong32(IntPtr hWnd, int nIndex);
-
-        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr", CharSet = CharSet.Auto)]
-        private static extern IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool IsWindow(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool IsWindowVisible(IntPtr hWnd);
-
-        [DllImport("user32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool IsIconic(IntPtr hWnd);
-
-        [DllImport("user32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool IsZoomed(IntPtr hWnd);
-
-        [DllImport("user32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, int uFlags);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern IntPtr BeginDeferWindowPos(int nNumWindows);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        private static extern IntPtr DeferWindowPos(
-            IntPtr hWinPosInfo,
-            IntPtr hWnd,
-            IntPtr hWndInsertAfter,
-            int x,
-            int y,
-            int cx,
-            int cy,
-            int uFlags);
-
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool EndDeferWindowPos(IntPtr hWinPosInfo);
-
-        [DllImport("user32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SetWindowPlacement(IntPtr hWnd, [In] ref NativeWindowPlacement placement);
-
-        [DllImport("user32.dll", ExactSpelling = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetWindowPlacement(IntPtr hWnd, ref NativeWindowPlacement placement);
-
-        [DllImport("user32.dll", EntryPoint = "ScreenToClient", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ScreenToClientCore(IntPtr hWnd, ref NativePoint lpPoint);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetCapture();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SetCapture(IntPtr hWnd);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ReleaseCapture();
     }
 }

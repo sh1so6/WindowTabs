@@ -5,19 +5,16 @@ namespace WindowTabs.CSharp.Models
 {
     internal sealed class ManagedGroupStripDropTargetChange
     {
-        public ManagedGroupStripDropTargetChange(bool hasChanged, IntPtr targetWindowHandle, bool insertAfterTarget, IReadOnlyList<IntPtr> invalidatedWindowHandles)
+        public ManagedGroupStripDropTargetChange(bool hasChanged, ManagedGroupStripDropState dropState, IReadOnlyList<IntPtr> invalidatedWindowHandles)
         {
             HasChanged = hasChanged;
-            TargetWindowHandle = targetWindowHandle;
-            InsertAfterTarget = insertAfterTarget;
+            DropState = dropState;
             InvalidatedWindowHandles = invalidatedWindowHandles ?? Array.Empty<IntPtr>();
         }
 
         public bool HasChanged { get; }
 
-        public IntPtr TargetWindowHandle { get; }
-
-        public bool InsertAfterTarget { get; }
+        public ManagedGroupStripDropState DropState { get; }
 
         public IReadOnlyList<IntPtr> InvalidatedWindowHandles { get; }
     }

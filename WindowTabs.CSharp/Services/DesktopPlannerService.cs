@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using WindowTabs.CSharp.Models;
 
 namespace WindowTabs.CSharp.Services
@@ -9,20 +8,16 @@ namespace WindowTabs.CSharp.Services
     {
         private readonly FilterService filterService;
         private readonly LauncherService launcherService;
-        private readonly PendingWindowLaunchTracker pendingLaunchTracker;
-        private readonly ProcessSettingsService processSettingsService;
-        private readonly Dictionary<IntPtr, string> trackedProcessPaths = new Dictionary<IntPtr, string>();
+        private readonly DesktopGroupingRuleService groupingRuleService;
 
         public DesktopPlannerService(
             FilterService filterService,
             LauncherService launcherService,
-            PendingWindowLaunchTracker pendingLaunchTracker,
-            ProcessSettingsService processSettingsService)
+            DesktopGroupingRuleService groupingRuleService)
         {
             this.filterService = filterService ?? throw new ArgumentNullException(nameof(filterService));
             this.launcherService = launcherService ?? throw new ArgumentNullException(nameof(launcherService));
-            this.pendingLaunchTracker = pendingLaunchTracker ?? throw new ArgumentNullException(nameof(pendingLaunchTracker));
-            this.processSettingsService = processSettingsService ?? throw new ArgumentNullException(nameof(processSettingsService));
+            this.groupingRuleService = groupingRuleService ?? throw new ArgumentNullException(nameof(groupingRuleService));
         }
 
         public DesktopPlan BuildPlan(
@@ -34,8 +29,10 @@ namespace WindowTabs.CSharp.Services
         {
             var plan = new DesktopPlan();
             var zOrderMap = BuildZOrderMap(windowsInZOrder);
+            var windowsByHandle = BuildWindowMap(windowsInZOrder);
             var groupedWindows = BuildGroupedWindowSet(groups);
             var currentGroupsByWindow = BuildCurrentGroupMap(groups);
+            var tabbableByHandle = BuildTabbableMap(windowsInZOrder, screenRegion);
 
             foreach (var window in windowsInZOrder)
             {
@@ -51,19 +48,20 @@ namespace WindowTabs.CSharp.Services
                     continue;
                 }
 
-                if (filterService.IsTabbableWindow(window, screenRegion) && !groupedWindows.Contains(window.Handle))
+                var isTabbable = tabbableByHandle.TryGetValue(window.Handle, out var cachedIsTabbable)
+                    && cachedIsTabbable;
+                if (isTabbable && !groupedWindows.Contains(window.Handle))
                 {
-                    plan.WindowsToGroup.Add(FindGroupForWindow(window, groups, zOrderMap, droppedWindowHandles));
+                    plan.WindowsToGroup.Add(groupingRuleService.BuildGroupingDecision(window, groups, zOrderMap, droppedWindowHandles));
                     continue;
                 }
 
-                if (!filterService.IsTabbableWindow(window, screenRegion)
-                    || !currentGroupsByWindow.TryGetValue(window.Handle, out var currentGroupHandle))
+                if (!isTabbable || !currentGroupsByWindow.TryGetValue(window.Handle, out var currentGroupHandle))
                 {
                     continue;
                 }
 
-                var regroupDecision = FindGroupForWindow(window, groups, zOrderMap, droppedWindowHandles);
+                var regroupDecision = groupingRuleService.BuildGroupingDecision(window, groups, zOrderMap, droppedWindowHandles);
                 if (regroupDecision.TargetGroupHandle.HasValue
                     && regroupDecision.TargetGroupHandle.Value != currentGroupHandle)
                 {
@@ -73,7 +71,7 @@ namespace WindowTabs.CSharp.Services
 
                 if (regroupDecision.TargetGroupHandle.HasValue
                     && regroupDecision.TargetGroupHandle.Value == currentGroupHandle
-                    && ShouldReorderWindow(window.Handle, currentGroupHandle, regroupDecision.InsertAfterWindowHandle, groups))
+                    && groupingRuleService.ShouldReorderWindow(window.Handle, currentGroupHandle, regroupDecision.InsertAfterWindowHandle, groups))
                 {
                     plan.WindowsToReorder.Add(regroupDecision);
                 }
@@ -83,13 +81,13 @@ namespace WindowTabs.CSharp.Services
             {
                 foreach (var windowHandle in group.WindowHandles)
                 {
-                    var window = windowsInZOrder.FirstOrDefault(candidate => candidate.Handle == windowHandle);
-                    if (window == null)
+                    if (!windowsByHandle.TryGetValue(windowHandle, out var window))
                     {
                         continue;
                     }
 
-                    if (window.IsOnCurrentVirtualDesktop && !filterService.IsTabbableWindow(window, screenRegion))
+                    if (window.IsOnCurrentVirtualDesktop
+                        && (!tabbableByHandle.TryGetValue(windowHandle, out var isTabbable) || !isTabbable))
                     {
                         plan.WindowsToRemoveFromGroups.Add((group.GroupHandle, windowHandle));
                     }
@@ -104,58 +102,23 @@ namespace WindowTabs.CSharp.Services
             return plan;
         }
 
-        private WindowGroupingDecision FindGroupForWindow(
-            WindowSnapshot window,
-            IReadOnlyList<GroupSnapshot> groups,
-            IReadOnlyDictionary<IntPtr, int> zOrderMap,
-            ISet<IntPtr> droppedWindowHandles)
-        {
-            if (droppedWindowHandles.Contains(window.Handle))
-            {
-                return new WindowGroupingDecision
-                {
-                    WindowHandle = window.Handle,
-                    Reason = GroupAssignmentReason.Dropped
-                };
-            }
-
-            var pendingLaunch = pendingLaunchTracker.TryConsume(window.Process.ProcessPath);
-            if (pendingLaunch != null)
-            {
-                return new WindowGroupingDecision
-                {
-                    WindowHandle = window.Handle,
-                    TargetGroupHandle = pendingLaunch.GroupHandle,
-                    InsertAfterWindowHandle = pendingLaunch.InvokerHandle,
-                    Reason = GroupAssignmentReason.PendingLaunch
-                };
-            }
-
-            var autoGroup = FindAutoGroup(window, groups, zOrderMap);
-            if (autoGroup.HasValue)
-            {
-                return new WindowGroupingDecision
-                {
-                    WindowHandle = window.Handle,
-                    TargetGroupHandle = autoGroup.Value,
-                    InsertAfterWindowHandle = FindInsertAfterWindowHandle(window.Process.ProcessPath, autoGroup.Value, groups),
-                    Reason = GroupAssignmentReason.AutoGroup
-                };
-            }
-
-            return new WindowGroupingDecision
-            {
-                WindowHandle = window.Handle,
-                Reason = GroupAssignmentReason.NewGroup
-            };
-        }
-
         private static IReadOnlyDictionary<IntPtr, int> BuildZOrderMap(IReadOnlyList<WindowSnapshot> windowsInZOrder)
         {
             var map = new Dictionary<IntPtr, int>();
             for (var index = 0; index < windowsInZOrder.Count; index++)
             {
                 map[windowsInZOrder[index].Handle] = index;
+            }
+
+            return map;
+        }
+
+        private static Dictionary<IntPtr, WindowSnapshot> BuildWindowMap(IReadOnlyList<WindowSnapshot> windowsInZOrder)
+        {
+            var map = new Dictionary<IntPtr, WindowSnapshot>();
+            foreach (var window in windowsInZOrder)
+            {
+                map[window.Handle] = window;
             }
 
             return map;
@@ -189,139 +152,21 @@ namespace WindowTabs.CSharp.Services
             return map;
         }
 
-        private static bool ShouldReorderWindow(
-            IntPtr windowHandle,
-            IntPtr currentGroupHandle,
-            IntPtr? desiredInsertAfterWindowHandle,
-            IReadOnlyList<GroupSnapshot> groups)
+        private Dictionary<IntPtr, bool> BuildTabbableMap(IReadOnlyList<WindowSnapshot> windowsInZOrder, RectValue screenRegion)
         {
-            var group = groups.FirstOrDefault(candidate => candidate.GroupHandle == currentGroupHandle);
-            if (group == null)
+            var map = new Dictionary<IntPtr, bool>();
+            foreach (var window in windowsInZOrder)
             {
-                return false;
+                map[window.Handle] = filterService.IsTabbableWindow(window, screenRegion);
             }
 
-            return FindCurrentInsertAfterWindowHandle(group, windowHandle) != desiredInsertAfterWindowHandle;
+            return map;
         }
 
-        private static IntPtr? FindCurrentInsertAfterWindowHandle(GroupSnapshot group, IntPtr windowHandle)
-        {
-            if (group?.WindowHandles == null)
-            {
-                return null;
-            }
-
-            for (var index = 0; index < group.WindowHandles.Count; index++)
-            {
-                if (group.WindowHandles[index] != windowHandle)
-                {
-                    continue;
-                }
-
-                return index > 0
-                    ? group.WindowHandles[index - 1]
-                    : (IntPtr?)null;
-            }
-
-            return null;
-        }
-
-        private IntPtr? FindAutoGroup(WindowSnapshot window, IReadOnlyList<GroupSnapshot> groups, IReadOnlyDictionary<IntPtr, int> zOrderMap)
-        {
-            if (!processSettingsService.GetAutoGroupingEnabled(window.Process.ProcessPath))
-            {
-                return null;
-            }
-
-            var categoryNumber = processSettingsService.GetCategoryForProcess(window.Process.ProcessPath);
-            if (categoryNumber > 0)
-            {
-                return FindGroupByCategory(categoryNumber, groups, zOrderMap);
-            }
-
-            return FindGroupByProcessPath(window.Process.ProcessPath, groups, zOrderMap);
-        }
-
-        private IntPtr? FindInsertAfterWindowHandle(string processPath, IntPtr groupHandle, IReadOnlyList<GroupSnapshot> groups)
-        {
-            if (string.IsNullOrWhiteSpace(processPath))
-            {
-                return null;
-            }
-
-            var group = groups.FirstOrDefault(candidate => candidate.GroupHandle == groupHandle);
-            if (group == null)
-            {
-                return null;
-            }
-
-            IntPtr? insertAfterWindowHandle = null;
-            foreach (var windowHandle in group.WindowHandles)
-            {
-                if (trackedProcessPaths.TryGetValue(windowHandle, out var candidatePath)
-                    && string.Equals(candidatePath, processPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    insertAfterWindowHandle = windowHandle;
-                }
-            }
-
-            return insertAfterWindowHandle;
-        }
-
-        private IntPtr? FindGroupByCategory(int categoryNumber, IReadOnlyList<GroupSnapshot> groups, IReadOnlyDictionary<IntPtr, int> zOrderMap)
-        {
-            foreach (var group in groups
-                         .Where(candidate => candidate.WindowHandles.Count > 0)
-                         .OrderBy(candidate => candidate.WindowHandles.Min(handle => zOrderMap.TryGetValue(handle, out var order) ? order : int.MaxValue)))
-            {
-                foreach (var windowHandle in group.WindowHandles)
-                {
-                    if (!trackedProcessPaths.TryGetValue(windowHandle, out var processPath))
-                    {
-                        continue;
-                    }
-
-                    if (processSettingsService.GetCategoryForProcess(processPath) == categoryNumber)
-                    {
-                        return group.GroupHandle;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private IntPtr? FindGroupByProcessPath(string processPath, IReadOnlyList<GroupSnapshot> groups, IReadOnlyDictionary<IntPtr, int> zOrderMap)
-        {
-            if (string.IsNullOrWhiteSpace(processPath))
-            {
-                return null;
-            }
-
-            foreach (var group in groups
-                         .Where(group => group.WindowHandles.Count > 0)
-                         .OrderBy(group => group.WindowHandles.Min(handle => zOrderMap.TryGetValue(handle, out var order) ? order : int.MaxValue)))
-            {
-                foreach (var windowHandle in group.WindowHandles)
-                {
-                    if (trackedProcessPaths.TryGetValue(windowHandle, out var candidatePath)
-                        && string.Equals(candidatePath, processPath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return group.GroupHandle;
-                    }
-                }
-            }
-
-            return null;
-        }
 
         public void UpdateTrackedProcessPaths(IEnumerable<WindowSnapshot> windows)
         {
-            trackedProcessPaths.Clear();
-            foreach (var window in windows)
-            {
-                trackedProcessPaths[window.Handle] = window.Process.ProcessPath ?? string.Empty;
-            }
+            groupingRuleService.UpdateTrackedProcessPaths(windows);
         }
     }
 }

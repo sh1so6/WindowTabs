@@ -1,56 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;_nolegacy_obj\**;_net8_obj\**</DefaultItemExcludes>
     <RootNamespace>WindowTabs.CSharp</RootNamespace>
-    <AssemblyName>WindowTabs.CSharp</AssemblyName>
-    <ApplicationIcon>..\WtProgram\Resources\Bemo.ico</ApplicationIcon>
+    <AssemblyName>WindowTabs</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <EnableLegacyRuntime>true</EnableLegacyRuntime>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
+    <ApplicationIcon>Resources\Bemo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="UI\LicenseSettingsControl.cs" />
-    <Compile Remove="Services\LegacyLicenseManagerBridge.cs" />
+    <Compile Remove="Contracts\IDesktopRuntimeBootstrapper.cs" />
+    <Compile Remove="Contracts\IDesktopRuntimeStatePersistence.cs" />
+    <Compile Remove="Contracts\ILocalizationContext.cs" />
+    <Compile Remove="Contracts\IProgramRefresher.cs" />
+    <Compile Remove="Services\LocalizationContext.cs" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Newtonsoft.Json" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WtProgram\WtProgram.fsproj" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(EnableLegacyRuntime)' != 'true'">
-    <Compile Remove="Services\BemoSettingsValueConverter.cs" />
-    <Compile Remove="Services\FSharpListAdapter.cs" />
-    <Compile Remove="Services\Legacy*.cs" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(EnableLegacyRuntime)' != 'true'">
-    <ProjectReference Remove="..\WtProgram\WtProgram.fsproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Interop.SHDocVw">
-      <HintPath>..\Interop.SHDocVw.dll</HintPath>
-    </Reference>
-    <Reference Include="Interop.Shell32">
-      <HintPath>..\Interop.Shell32.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="App.config">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <Content Include="..\WtProgram\Language\*.json">
-      <Link>Language\%(Filename)%(Extension)</Link>
+    <Content Include="Language\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="..\WtProgram\Settings\*.json">
-      <Link>Settings\%(Filename)%(Extension)</Link>
+    <Content Include="Settings\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

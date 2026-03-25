@@ -69,46 +69,39 @@ namespace WindowTabs.CSharp.Services
             var parentHandle = NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlHwndParent);
             var extendedStyle = NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlExStyle);
 
-            return new WindowSnapshot
-            {
-                Handle = handle,
-                Process = CreateProcessSnapshot(processId),
-                Style = NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlStyle).ToInt64(),
-                ExtendedStyle = extendedStyle.ToInt64(),
-                IsWindow = NativeWindowApi.IsWindowHandle(handle),
-                IsVisibleOnScreen = NativeWindowApi.IsWindowVisibleOnDesktop(handle) && !IsCloaked(handle),
-                IsOnCurrentVirtualDesktop = !IsCloaked(handle),
-                IsTopMost = (extendedStyle.ToInt64() & NativeWindowApi.WsExTopMost) == NativeWindowApi.WsExTopMost,
-                IsMinimized = NativeWindowApi.IsWindowMinimized(handle),
-                ClassName = NativeWindowApi.GetWindowClassName(handle),
-                Text = NativeWindowApi.GetWindowTextValue(handle),
-                Bounds = ToRectValue(NativeWindowApi.GetWindowRectangle(handle)),
-                ParentBounds = parentHandle == IntPtr.Zero ? new RectValue() : ToRectValue(NativeWindowApi.GetWindowRectangle(parentHandle))
-            };
+            return new WindowSnapshot(
+                handle,
+                CreateProcessSnapshot(processId),
+                NativeWindowApi.GetWindowLongPtr(handle, NativeWindowApi.GwlStyle).ToInt64(),
+                extendedStyle.ToInt64(),
+                NativeWindowApi.IsWindowHandle(handle),
+                NativeWindowApi.IsWindowVisibleOnDesktop(handle) && !IsCloaked(handle),
+                !IsCloaked(handle),
+                (extendedStyle.ToInt64() & NativeWindowApi.WsExTopMost) == NativeWindowApi.WsExTopMost,
+                NativeWindowApi.IsWindowMinimized(handle),
+                NativeWindowApi.GetWindowClassName(handle),
+                NativeWindowApi.GetWindowTextValue(handle),
+                ToRectValue(NativeWindowApi.GetWindowRectangle(handle)),
+                parentHandle == IntPtr.Zero ? new RectValue() : ToRectValue(NativeWindowApi.GetWindowRectangle(parentHandle)));
         }
 
         private ProcessSnapshot CreateProcessSnapshot(int processId)
         {
-            var snapshot = new ProcessSnapshot
-            {
-                ProcessId = processId,
-                IsCurrentProcess = processId == NativeProcessApi.GetCurrentProcessIdValue()
-            };
+            var isCurrentProcess = processId == NativeProcessApi.GetCurrentProcessIdValue();
 
             var processHandle = NativeProcessApi.OpenQueryProcessHandle(processId);
 
-            snapshot.CanQueryProcess = processHandle != IntPtr.Zero;
-            if (!snapshot.CanQueryProcess)
+            if (processHandle == IntPtr.Zero)
             {
-                return snapshot;
+                return new ProcessSnapshot(processId, false, isCurrentProcess, string.Empty, string.Empty);
             }
 
             try
             {
                 var kernelPath = NativeProcessApi.GetProcessImagePath(processHandle);
-                snapshot.ProcessPath = NormalizeProcessPath(kernelPath);
-                snapshot.ExeName = System.IO.Path.GetFileName(snapshot.ProcessPath)?.ToLowerInvariant() ?? string.Empty;
-                return snapshot;
+                var processPath = NormalizeProcessPath(kernelPath);
+                var exeName = System.IO.Path.GetFileName(processPath)?.ToLowerInvariant() ?? string.Empty;
+                return new ProcessSnapshot(processId, true, isCurrentProcess, processPath, exeName);
             }
             finally
             {

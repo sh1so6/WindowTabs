@@ -245,7 +245,7 @@ namespace WindowTabs.CSharp.Services
 
             private void EnterTarget(IntPtr hwnd, Point screenPoint, bool isInitial)
             {
-                if (!targets.TryGetValue(hwnd, out var target))
+                if (!TryGetTarget(hwnd, out var target))
                 {
                     EnterFloatingState();
                     return;
@@ -278,7 +278,7 @@ namespace WindowTabs.CSharp.Services
 
                 target.OnDragExit();
                 var nextTarget = NativeWindowApi.GetTopLevelWindowFromPoint(screenPoint);
-                if (targets.ContainsKey(nextTarget))
+                if (TryGetTarget(nextTarget, out _))
                 {
                     EnterTarget(nextTarget, screenPoint, false);
                     return;
@@ -306,7 +306,7 @@ namespace WindowTabs.CSharp.Services
 
                 previewWindow.SetVisible(false);
                 var targetHwnd = NativeWindowApi.GetTopLevelWindowFromPoint(screenPoint);
-                if (targets.ContainsKey(targetHwnd))
+                if (TryGetTarget(targetHwnd, out _))
                 {
                     EnterTarget(targetHwnd, screenPoint, false);
                     return;
@@ -330,37 +330,42 @@ namespace WindowTabs.CSharp.Services
                 {
                     case DragDetectingState _:
                         break;
-                    case DragCapturedState _:
-                        ((DragCapturedState)finalState).Drop(request.Data, screenPoint);
-                        foreach (var target in targets.Values)
-                        {
-                            target.OnDragEnd();
-                        }
-
-                        foreach (var notification in notifications)
-                        {
-                            notification.OnDragEnd();
-                        }
-
-                        parent.OnDragEnd();
+                    case DragCapturedState capturedState:
+                        CompleteCapturedDrag(capturedState, screenPoint);
                         break;
                     case DragFloatingState _:
-                        foreach (var target in targets.Values)
-                        {
-                            target.OnDragEnd();
-                        }
-
-                        foreach (var notification in notifications)
-                        {
-                            notification.OnDragEnd();
-                        }
-
-                        parent.OnDragDrop(screenPoint, request.Data);
-                        parent.OnDragEnd();
+                        CompleteFloatingDrag(screenPoint);
                         break;
                 }
 
                 onCompleted(this);
+            }
+
+            private void CompleteCapturedDrag(DragCapturedState capturedState, Point screenPoint)
+            {
+                capturedState.Drop(request.Data, screenPoint);
+                NotifyDragEnded();
+                parent.OnDragEnd();
+            }
+
+            private void CompleteFloatingDrag(Point screenPoint)
+            {
+                NotifyDragEnded();
+                parent.OnDragDrop(screenPoint, request.Data);
+                parent.OnDragEnd();
+            }
+
+            private void NotifyDragEnded()
+            {
+                foreach (var target in targets.Values)
+                {
+                    target.OnDragEnd();
+                }
+
+                foreach (var notification in notifications)
+                {
+                    notification.OnDragEnd();
+                }
             }
 
             private void SetState(IDragState nextState)
@@ -393,6 +398,17 @@ namespace WindowTabs.CSharp.Services
             private static Point ScreenToClient(IntPtr hwnd, Point point)
             {
                 return NativeWindowApi.ScreenToClient(hwnd, point);
+            }
+
+            private bool TryGetTarget(IntPtr hwnd, out IDragDropTarget target)
+            {
+                if (hwnd != IntPtr.Zero && targets.TryGetValue(hwnd, out target))
+                {
+                    return true;
+                }
+
+                target = null;
+                return false;
             }
         }
 

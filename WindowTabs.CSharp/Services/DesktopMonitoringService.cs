@@ -6,23 +6,27 @@ namespace WindowTabs.CSharp.Services
 {
     internal sealed class DesktopMonitoringService : IDisposable
     {
-        private readonly DesktopSessionCoordinator desktopSessionCoordinator;
-        private readonly DesktopRuntimeSelection desktopRuntimeSelection;
+        private readonly DesktopRefreshWorkflowService refreshWorkflowService;
         private readonly AppBehaviorState appBehaviorState;
+        private readonly DesktopMonitorStateFactory monitorStateFactory;
         private readonly Timer refreshTimer;
         private readonly WindowEventSubscriptionService windowEventSubscriptionService;
         private ShellHookWindow shellHookWindow;
         private int suspensionDepth;
+        private bool isShellHookAvailable = true;
+        private bool isWinEventMonitoringAvailable = true;
+        private string shellHookError = string.Empty;
+        private string winEventMonitoringError = string.Empty;
         private bool isStarted;
         private bool isDisposed;
 
         public DesktopMonitoringService(
-            DesktopSessionCoordinator desktopSessionCoordinator,
-            DesktopRuntimeSelection desktopRuntimeSelection,
+            DesktopRefreshWorkflowService refreshWorkflowService,
+            DesktopMonitorStateFactory monitorStateFactory,
             AppBehaviorState appBehaviorState)
         {
-            this.desktopSessionCoordinator = desktopSessionCoordinator ?? throw new ArgumentNullException(nameof(desktopSessionCoordinator));
-            this.desktopRuntimeSelection = desktopRuntimeSelection ?? throw new ArgumentNullException(nameof(desktopRuntimeSelection));
+            this.refreshWorkflowService = refreshWorkflowService ?? throw new ArgumentNullException(nameof(refreshWorkflowService));
+            this.monitorStateFactory = monitorStateFactory ?? throw new ArgumentNullException(nameof(monitorStateFactory));
             this.appBehaviorState = appBehaviorState ?? throw new ArgumentNullException(nameof(appBehaviorState));
             windowEventSubscriptionService = new WindowEventSubscriptionService(OnWinObjectEvent);
             refreshTimer = new Timer
@@ -44,46 +48,14 @@ namespace WindowTabs.CSharp.Services
             }
 
             isStarted = true;
-            shellHookWindow = new ShellHookWindow(OnShellEvent);
+            TryStartShellHookWindow();
             refreshTimer.Start();
             RefreshNow("startup");
         }
 
         public void RefreshNow(string trigger)
         {
-            if (suspensionDepth > 0)
-            {
-                return;
-            }
-
-            if (appBehaviorState.IsDisabled)
-            {
-                CurrentState = BuildDisabledState(trigger);
-                StateChanged?.Invoke(this, EventArgs.Empty);
-                return;
-            }
-
-            var refreshResult = desktopSessionCoordinator.RefreshDesktop();
-            windowEventSubscriptionService.SyncSubscriptions(refreshResult.Windows, refreshResult.Plan.WindowsToSubscribe);
-            CurrentState = new DesktopMonitorState
-            {
-                RefreshResult = refreshResult,
-                LastTrigger = string.IsNullOrWhiteSpace(trigger) ? "manual" : trigger,
-                LastUpdatedLocal = DateTime.Now,
-                LastShellEvent = CurrentState.LastShellEvent,
-                LastShellWindowHandle = CurrentState.LastShellWindowHandle,
-                LastWinEvent = CurrentState.LastWinEvent,
-                LastWinEventWindowHandle = CurrentState.LastWinEventWindowHandle,
-                ActiveWinEventSubscriptions = windowEventSubscriptionService.SubscriptionCount,
-                UsedFastDestroyPath = false,
-                RuntimeKind = desktopSessionCoordinator.RuntimeKind,
-                UsedRuntimeFallback = desktopRuntimeSelection.UsedFallback,
-                RuntimeFallbackReason = desktopRuntimeSelection.FallbackReason,
-                RuntimeFallbackExceptionType = desktopRuntimeSelection.ExceptionType,
-                IsDisabled = false
-            };
-
-            StateChanged?.Invoke(this, EventArgs.Empty);
+            HandleTrigger(trigger, refreshWorkflowService.RefreshDesktop);
         }
 
         public void Dispose()
@@ -109,82 +81,26 @@ namespace WindowTabs.CSharp.Services
 
         private void OnShellEvent(IntPtr windowHandle, ShellEventKind shellEvent)
         {
-            if (suspensionDepth > 0)
-            {
-                return;
-            }
-
-            if (appBehaviorState.IsDisabled)
-            {
-                CurrentState = BuildDisabledState("shell-hook-disabled");
-                CurrentState.LastShellEvent = shellEvent;
-                CurrentState.LastShellWindowHandle = windowHandle;
-                StateChanged?.Invoke(this, EventArgs.Empty);
-                return;
-            }
-
-            var refreshResult = shellEvent == ShellEventKind.WindowDestroyed
-                ? desktopSessionCoordinator.HandleDestroyedWindow(windowHandle, CurrentState.RefreshResult)
-                : desktopSessionCoordinator.RefreshDesktop();
-            windowEventSubscriptionService.SyncSubscriptions(refreshResult.Windows, refreshResult.Plan.WindowsToSubscribe);
-            CurrentState = new DesktopMonitorState
-            {
-                RefreshResult = refreshResult,
-                LastTrigger = shellEvent == ShellEventKind.WindowDestroyed ? "shell-hook-fast-destroy" : "shell-hook",
-                LastUpdatedLocal = DateTime.Now,
-                LastShellEvent = shellEvent,
-                LastShellWindowHandle = windowHandle,
-                LastWinEvent = CurrentState.LastWinEvent,
-                LastWinEventWindowHandle = CurrentState.LastWinEventWindowHandle,
-                ActiveWinEventSubscriptions = windowEventSubscriptionService.SubscriptionCount,
-                UsedFastDestroyPath = shellEvent == ShellEventKind.WindowDestroyed,
-                RuntimeKind = desktopSessionCoordinator.RuntimeKind,
-                UsedRuntimeFallback = desktopRuntimeSelection.UsedFallback,
-                RuntimeFallbackReason = desktopRuntimeSelection.FallbackReason,
-                RuntimeFallbackExceptionType = desktopRuntimeSelection.ExceptionType,
-                IsDisabled = false
-            };
-
-            StateChanged?.Invoke(this, EventArgs.Empty);
+            var usedFastDestroyPath = shellEvent == ShellEventKind.WindowDestroyed;
+            HandleTrigger(
+                usedFastDestroyPath ? "shell-hook-fast-destroy" : "shell-hook",
+                () => usedFastDestroyPath
+                    ? refreshWorkflowService.HandleDestroyedWindow(windowHandle, CurrentState.RefreshResult)
+                    : refreshWorkflowService.RefreshDesktop(),
+                usedFastDestroyPath,
+                shellEvent: shellEvent,
+                shellWindowHandle: windowHandle);
         }
 
         private void OnWinObjectEvent(IntPtr windowHandle, WinObjectEventKind winObjectEvent)
         {
-            if (suspensionDepth > 0)
-            {
-                return;
-            }
-
-            if (appBehaviorState.IsDisabled)
-            {
-                CurrentState = BuildDisabledState("win-event-disabled");
-                CurrentState.LastWinEvent = winObjectEvent;
-                CurrentState.LastWinEventWindowHandle = windowHandle;
-                StateChanged?.Invoke(this, EventArgs.Empty);
-                return;
-            }
-
-            var refreshResult = desktopSessionCoordinator.RefreshDesktop();
-            windowEventSubscriptionService.SyncSubscriptions(refreshResult.Windows, refreshResult.Plan.WindowsToSubscribe);
-            CurrentState = new DesktopMonitorState
-            {
-                RefreshResult = refreshResult,
-                LastTrigger = "win-event",
-                LastUpdatedLocal = DateTime.Now,
-                LastShellEvent = CurrentState.LastShellEvent,
-                LastShellWindowHandle = CurrentState.LastShellWindowHandle,
-                LastWinEvent = winObjectEvent,
-                LastWinEventWindowHandle = windowHandle,
-                ActiveWinEventSubscriptions = windowEventSubscriptionService.SubscriptionCount,
-                UsedFastDestroyPath = false,
-                RuntimeKind = desktopSessionCoordinator.RuntimeKind,
-                UsedRuntimeFallback = desktopRuntimeSelection.UsedFallback,
-                RuntimeFallbackReason = desktopRuntimeSelection.FallbackReason,
-                RuntimeFallbackExceptionType = desktopRuntimeSelection.ExceptionType,
-                IsDisabled = false
-            };
-
-            StateChanged?.Invoke(this, EventArgs.Empty);
+            HandleTrigger(
+                "win-event",
+                refreshWorkflowService.RefreshDesktop,
+                shellEvent: null,
+                shellWindowHandle: default,
+                winEvent: winObjectEvent,
+                winEventWindowHandle: windowHandle);
         }
 
         private void OnRefreshTimerTick(object sender, EventArgs e)
@@ -192,25 +108,118 @@ namespace WindowTabs.CSharp.Services
             RefreshNow("timer");
         }
 
-        private DesktopMonitorState BuildDisabledState(string trigger)
+        private void PublishState(DesktopMonitorStateUpdate update)
         {
-            return new DesktopMonitorState
+            CurrentState = monitorStateFactory.Create(CurrentState, update);
+            StateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void HandleTrigger(
+            string trigger,
+            Func<DesktopRefreshResult> refreshOperation,
+            bool usedFastDestroyPath = false,
+            ShellEventKind? shellEvent = null,
+            IntPtr shellWindowHandle = default,
+            WinObjectEventKind? winEvent = null,
+            IntPtr winEventWindowHandle = default)
+        {
+            if (suspensionDepth > 0)
             {
-                RefreshResult = CurrentState?.RefreshResult ?? new DesktopRefreshResult(),
-                LastTrigger = string.IsNullOrWhiteSpace(trigger) ? "disabled" : trigger,
-                LastUpdatedLocal = DateTime.Now,
-                LastShellEvent = CurrentState?.LastShellEvent,
-                LastShellWindowHandle = CurrentState?.LastShellWindowHandle ?? IntPtr.Zero,
-                LastWinEvent = CurrentState?.LastWinEvent,
-                LastWinEventWindowHandle = CurrentState?.LastWinEventWindowHandle ?? IntPtr.Zero,
-                ActiveWinEventSubscriptions = 0,
-                UsedFastDestroyPath = false,
-                RuntimeKind = desktopSessionCoordinator.RuntimeKind,
-                UsedRuntimeFallback = desktopRuntimeSelection.UsedFallback,
-                RuntimeFallbackReason = desktopRuntimeSelection.FallbackReason,
-                RuntimeFallbackExceptionType = desktopRuntimeSelection.ExceptionType,
-                IsDisabled = true
+                return;
+            }
+
+            if (appBehaviorState.IsDisabled)
+            {
+                PublishState(CreateStateUpdate(
+                    trigger,
+                    CurrentState?.RefreshResult,
+                    isDisabled: true,
+                    usedFastDestroyPath: false,
+                    shellEvent: shellEvent,
+                    shellWindowHandle: shellWindowHandle,
+                    winEvent: winEvent,
+                    winEventWindowHandle: winEventWindowHandle));
+                return;
+            }
+
+            var refreshResult = refreshOperation?.Invoke();
+            TrySyncWinEventSubscriptions(refreshResult);
+            PublishState(CreateStateUpdate(
+                trigger,
+                refreshResult,
+                isDisabled: false,
+                usedFastDestroyPath: usedFastDestroyPath,
+                shellEvent: shellEvent,
+                shellWindowHandle: shellWindowHandle,
+                winEvent: winEvent,
+                winEventWindowHandle: winEventWindowHandle,
+                activeWinEventSubscriptions: windowEventSubscriptionService.SubscriptionCount));
+        }
+
+        private DesktopMonitorStateUpdate CreateStateUpdate(
+            string trigger,
+            DesktopRefreshResult refreshResult,
+            bool isDisabled,
+            bool usedFastDestroyPath,
+            ShellEventKind? shellEvent = null,
+            IntPtr shellWindowHandle = default,
+            WinObjectEventKind? winEvent = null,
+            IntPtr winEventWindowHandle = default,
+            int activeWinEventSubscriptions = 0)
+        {
+            return new DesktopMonitorStateUpdate
+            {
+                RefreshResult = refreshResult,
+                LastTrigger = trigger,
+                LastShellEvent = shellEvent,
+                LastShellWindowHandle = shellWindowHandle,
+                LastWinEvent = winEvent,
+                LastWinEventWindowHandle = winEventWindowHandle,
+                ActiveWinEventSubscriptions = activeWinEventSubscriptions,
+                UsedFastDestroyPath = usedFastDestroyPath,
+                IsShellHookAvailable = isShellHookAvailable,
+                ShellHookError = shellHookError,
+                IsWinEventMonitoringAvailable = isWinEventMonitoringAvailable,
+                WinEventMonitoringError = winEventMonitoringError,
+                IsDisabled = isDisabled
             };
+        }
+
+        private void TryStartShellHookWindow()
+        {
+            try
+            {
+                shellHookWindow = new ShellHookWindow(OnShellEvent);
+                isShellHookAvailable = true;
+                shellHookError = string.Empty;
+            }
+            catch (Exception exception)
+            {
+                isShellHookAvailable = false;
+                shellHookError = exception.GetType().Name + ": " + exception.Message;
+                UnhandledExceptionLogger.Log(exception, "DesktopMonitoringService.TryStartShellHookWindow");
+            }
+        }
+
+        private void TrySyncWinEventSubscriptions(DesktopRefreshResult refreshResult)
+        {
+            if (!isWinEventMonitoringAvailable || refreshResult == null)
+            {
+                return;
+            }
+
+            try
+            {
+                windowEventSubscriptionService.SyncSubscriptions(refreshResult.Windows, refreshResult.Plan.WindowsToSubscribe);
+                winEventMonitoringError = string.Empty;
+            }
+            catch (Exception exception)
+            {
+                isWinEventMonitoringAvailable = false;
+                winEventMonitoringError = exception.GetType().Name + ": " + exception.Message;
+                windowEventSubscriptionService.Dispose();
+                UnhandledExceptionLogger.Log(exception, "DesktopMonitoringService.TrySyncWinEventSubscriptions");
+            }
         }
 
         private sealed class RefreshSuspension : IDisposable

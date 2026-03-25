@@ -9,4 +9,9 @@
     <Nullable>disable</Nullable>
     <LangVersion>latestMajor</LangVersion>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'WindowTabs.CSharp'">
+    <BaseIntermediateOutputPath>_net8_obj\</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>_net8_obj\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
 </Project>

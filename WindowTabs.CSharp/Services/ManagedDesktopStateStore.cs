@@ -39,6 +39,30 @@ namespace WindowTabs.CSharp.Services
             return group;
         }
 
+        public IWindowGroupRuntime CreateGroupWithWindows(IEnumerable<IntPtr> windowHandles, IntPtr? preferredHandle)
+        {
+            if (windowHandles == null)
+            {
+                return null;
+            }
+
+            var handles = windowHandles.Where(handle => handle != IntPtr.Zero).Distinct().ToList();
+            if (handles.Count == 0)
+            {
+                return null;
+            }
+
+            var group = CreateGroup(preferredHandle);
+            IntPtr? insertAfterWindowHandle = null;
+            foreach (var handle in handles)
+            {
+                group.AddWindow(handle, insertAfterWindowHandle);
+                insertAfterWindowHandle = handle;
+            }
+
+            return group;
+        }
+
         public void SyncGroupDefaults()
         {
             foreach (var group in groups)
