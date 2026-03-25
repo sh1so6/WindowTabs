@@ -32,23 +32,31 @@ namespace WindowTabs.CSharp.Services
             bool isHovered,
             bool isDropTarget)
         {
-            var text = ResolveTabText(windowHandle, fallbackText);
+            var isPinned = windowPresentationStateStore.IsPinned(windowHandle);
+            var text = ResolveTabText(windowHandle, fallbackText, isPinned);
             var fillColor = ResolveTabFillColor(windowHandle, appearance, isActive, isHovered);
+            var borderColor = ResolveTabBorderColor(windowHandle, appearance, isActive, isHovered, isDropTarget);
+            var textColor = ResolveTabTextColor(windowHandle, appearance, fillColor, isActive, isHovered);
+            var maxWidth = Math.Max(90, appearance.TabMaxWidth);
+            var textWidth = TextRenderer.MeasureText(text, font).Width;
+            var resolvedWidth = isPinned
+                ? Math.Min(maxWidth, Math.Max(90, appearance.TabPinnedTabWidth))
+                : Math.Max(90, Math.Min(maxWidth, textWidth + 24));
 
             return new ManagedGroupStripTabVisualInfo
             {
                 Text = text,
                 FillColor = fillColor,
-                BorderColor = ResolveTabBorderColor(windowHandle, appearance, isActive, isHovered, isDropTarget),
-                TextColor = ResolveTabTextColor(windowHandle, appearance, fillColor, isActive, isHovered),
+                BorderColor = borderColor,
+                TextColor = textColor,
                 TextAlign = ResolveTextAlign(windowHandle, group),
                 Size = new Size(
-                    Math.Max(90, Math.Min(appearance.TabMaxWidth, TextRenderer.MeasureText(text, font).Width + 24)),
+                    resolvedWidth,
                     Math.Max(22, appearance.TabHeight))
             };
         }
 
-        private string ResolveTabText(IntPtr windowHandle, string fallbackText)
+        private string ResolveTabText(IntPtr windowHandle, string fallbackText, bool isPinned)
         {
             var baseText = string.IsNullOrWhiteSpace(fallbackText) ? "[untitled]" : fallbackText;
             if (windowPresentationStateStore.TryGetWindowNameOverride(windowHandle, out var nameOverride))
@@ -56,7 +64,7 @@ namespace WindowTabs.CSharp.Services
                 baseText = nameOverride;
             }
 
-            return windowPresentationStateStore.IsPinned(windowHandle)
+            return isPinned
                 ? "* " + baseText
                 : baseText;
         }
@@ -95,17 +103,19 @@ namespace WindowTabs.CSharp.Services
 
             if (isHovered)
             {
-                return appearance.TabMouseOverTabColor;
+                return Blend(fillColor: appearance.TabMouseOverTabColor, mixColor: Color.White, amount: 0.20f);
             }
 
-            return isActive ? appearance.TabActiveTabColor : appearance.TabInactiveTabColor;
+            return isActive
+                ? Blend(appearance.TabActiveTabColor, Color.White, 0.10f)
+                : Blend(appearance.TabInactiveTabColor, Color.White, 0.22f);
         }
 
         private Color ResolveTabBorderColor(IntPtr windowHandle, TabAppearanceInfo appearance, bool isActive, bool isHovered, bool isDropTarget)
         {
             if (isDropTarget)
             {
-                return Color.Gold;
+                return ColorSerialization.FromRgb(0xD28A18);
             }
 
             if (windowPresentationStateStore.TryGetBorderColor(windowHandle, out var borderColor))
@@ -115,10 +125,12 @@ namespace WindowTabs.CSharp.Services
 
             if (isHovered)
             {
-                return appearance.TabMouseOverBorderColor;
+                return Blend(appearance.TabMouseOverBorderColor, Color.Black, 0.12f);
             }
 
-            return isActive ? appearance.TabActiveBorderColor : appearance.TabInactiveBorderColor;
+            return isActive
+                ? Blend(appearance.TabActiveBorderColor, Color.Black, 0.08f)
+                : Blend(appearance.TabInactiveBorderColor, Color.White, 0.22f);
         }
 
         private Color ResolveTabTextColor(IntPtr windowHandle, TabAppearanceInfo appearance, Color fillColor, bool isActive, bool isHovered)
@@ -140,6 +152,16 @@ namespace WindowTabs.CSharp.Services
         {
             var brightness = (background.R * 299) + (background.G * 587) + (background.B * 114);
             return brightness >= 140000 ? Color.Black : Color.White;
+        }
+
+        private static Color Blend(Color fillColor, Color mixColor, float amount)
+        {
+            amount = Math.Max(0f, Math.Min(1f, amount));
+            return Color.FromArgb(
+                255,
+                (int)(fillColor.R + ((mixColor.R - fillColor.R) * amount)),
+                (int)(fillColor.G + ((mixColor.G - fillColor.G) * amount)),
+                (int)(fillColor.B + ((mixColor.B - fillColor.B) * amount)));
         }
     }
 }

@@ -14,16 +14,10 @@ namespace WindowTabs.CSharp.Services
                 return null;
             }
 
-            if (processPath.IndexOf("WindowsApps", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                var alternative = GetAlternativeLaunchCommand(processPath);
-                if (alternative != null)
-                {
-                    return new LaunchCommand(alternative);
-                }
-            }
-
-            return new LaunchCommand(processPath);
+            return processPath.IndexOf("WindowsApps", StringComparison.OrdinalIgnoreCase) >= 0
+                   && GetAlternativeLaunchCommand(processPath) is { } alternative
+                ? new LaunchCommand(alternative)
+                : new LaunchCommand(processPath);
         }
 
         public string BuildLaunchFailureMessage(string processPath, Exception exception)
@@ -46,12 +40,9 @@ namespace WindowTabs.CSharp.Services
         private static string GetAlternativeLaunchCommand(string processPath)
         {
             var fileName = Path.GetFileName(processPath)?.ToLowerInvariant() ?? string.Empty;
-            if (fileName.Contains("windowsterminal"))
-            {
-                return "wt.exe";
-            }
-
-            return null;
+            return fileName.Contains("windowsterminal")
+                ? "wt.exe"
+                : null;
         }
 
         private string BuildUwpLaunchFailureMessage(string processPath)

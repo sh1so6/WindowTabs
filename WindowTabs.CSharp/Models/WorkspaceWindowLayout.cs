@@ -1,30 +1,22 @@
 namespace WindowTabs.CSharp.Models
 {
-    internal sealed class WorkspaceWindowLayout
+    internal sealed class WorkspaceWindowLayout(
+        string name,
+        string title,
+        int zOrder,
+        WorkspaceWindowMatchType matchType)
     {
         public WorkspaceWindowLayout()
             : this(string.Empty, string.Empty, 0, WorkspaceWindowMatchType.ExactMatch)
         {
         }
 
-        public WorkspaceWindowLayout(
-            string name,
-            string title,
-            int zOrder,
-            WorkspaceWindowMatchType matchType)
-        {
-            Name = name ?? string.Empty;
-            Title = title ?? string.Empty;
-            ZOrder = zOrder;
-            MatchType = matchType;
-        }
+        public string Name { get; } = name ?? string.Empty;
 
-        public string Name { get; }
+        public string Title { get; } = title ?? string.Empty;
 
-        public string Title { get; }
+        public int ZOrder { get; } = zOrder;
 
-        public int ZOrder { get; }
-
-        public WorkspaceWindowMatchType MatchType { get; }
+        public WorkspaceWindowMatchType MatchType { get; } = matchType;
     }
 }

@@ -155,6 +155,7 @@ namespace WindowTabs.CSharp.Services
             Point clientPoint,
             ManagedGroupStripFormState currentState,
             IReadOnlyDictionary<IntPtr, ManagedGroupStripButtonState> buttonStates,
+            int tabOverlap,
             Rectangle displayRectangle,
             out ManagedGroupStripDropTargetInfo dropTargetInfo)
         {
@@ -163,6 +164,7 @@ namespace WindowTabs.CSharp.Services
                 clientPoint,
                 currentState.DragSessionState.CurrentGroupWindowHandles,
                 buttonStates,
+                tabOverlap,
                 displayRectangle,
                 out dropTargetInfo);
         }

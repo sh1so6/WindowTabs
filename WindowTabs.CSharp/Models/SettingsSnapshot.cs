@@ -4,9 +4,9 @@ namespace WindowTabs.CSharp.Models
 {
     internal sealed class SettingsSnapshot
     {
-        public List<string> IncludedPaths { get; set; } = new List<string>();
-        public List<string> ExcludedPaths { get; set; } = new List<string>();
-        public List<string> AutoGroupingPaths { get; set; } = new List<string>();
+        public List<string> IncludedPaths { get; set; } = [];
+        public List<string> ExcludedPaths { get; set; } = [];
+        public List<string> AutoGroupingPaths { get; set; } = [];
         public string Version { get; set; } = string.Empty;
         public TabAppearanceInfo TabAppearance { get; set; }
         public bool RunAtStartup { get; set; }

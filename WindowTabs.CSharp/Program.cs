@@ -23,10 +23,8 @@ namespace WindowTabs.CSharp
 
                 serviceProvider.GetRequiredService<AppBootstrapper>().Initialize();
 
-                using (var form = serviceProvider.GetRequiredService<WindowTabsShellForm>())
-                {
-                    Application.Run(form);
-                }
+                using var form = serviceProvider.GetRequiredService<WindowTabsShellForm>();
+                Application.Run(form);
             }
             catch (Exception exception)
             {

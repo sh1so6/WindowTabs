@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
@@ -9,20 +10,18 @@ namespace WindowTabs.CSharp.Services
     {
         public IReadOnlyList<WorkspaceLayout> DeserializeWorkspaces(JToken workspacesToken)
         {
-            if (!(workspacesToken is JArray workspacesArray))
+            if (workspacesToken is not JArray workspacesArray)
             {
-                return new List<WorkspaceLayout>();
+                return [];
             }
 
-            return workspacesArray
-                .OfType<JObject>()
-                .Select(DeserializeWorkspace)
-                .ToList();
+            return [.. workspacesArray.OfType<JObject>().Select(DeserializeWorkspace)];
         }
 
         public JArray SerializeWorkspaces(IReadOnlyList<WorkspaceLayout> layouts)
         {
-            return new JArray((layouts ?? new List<WorkspaceLayout>()).Select(SerializeWorkspace));
+            IEnumerable<WorkspaceLayout> safeLayouts = layouts ?? Array.Empty<WorkspaceLayout>();
+            return new JArray(safeLayouts.Select(SerializeWorkspace));
         }
 
         private static JObject SerializeWorkspace(WorkspaceLayout workspace)
@@ -91,8 +90,8 @@ namespace WindowTabs.CSharp.Services
             return new WorkspaceLayout(
                 workspace["name"]?.ToString() ?? string.Empty,
                 workspace["groups"] is JArray groups
-                    ? groups.OfType<JObject>().Select(DeserializeGroup).ToList()
-                    : new List<WorkspaceGroupLayout>());
+                    ? [.. groups.OfType<JObject>().Select(DeserializeGroup)]
+                    : []);
         }
 
         private static WorkspaceGroupLayout DeserializeGroup(JObject group)
@@ -101,8 +100,8 @@ namespace WindowTabs.CSharp.Services
                 group["name"]?.ToString() ?? string.Empty,
                 group["placement"] is JObject placement ? DeserializePlacement(placement) : new WindowPlacementValue(),
                 group["windows"] is JArray windows
-                    ? windows.OfType<JObject>().Select(DeserializeWindow).ToList()
-                    : new List<WorkspaceWindowLayout>());
+                    ? [.. windows.OfType<JObject>().Select(DeserializeWindow)]
+                    : []);
         }
 
         private static WindowPlacementValue DeserializePlacement(JObject placement)
@@ -119,32 +118,26 @@ namespace WindowTabs.CSharp.Services
 
         private static PointValue DeserializePoint(JObject point)
         {
-            if (point == null)
-            {
-                return new PointValue();
-            }
-
-            return new PointValue
-            {
-                X = point["x"]?.Value<int>() ?? 0,
-                Y = point["y"]?.Value<int>() ?? 0
-            };
+            return point is null
+                ? new PointValue()
+                : new PointValue
+                {
+                    X = point["x"]?.Value<int>() ?? 0,
+                    Y = point["y"]?.Value<int>() ?? 0
+                };
         }
 
         private static RectValue DeserializeRect(JObject rect)
         {
-            if (rect == null)
-            {
-                return new RectValue();
-            }
-
-            return new RectValue
-            {
-                X = rect["x"]?.Value<int>() ?? 0,
-                Y = rect["y"]?.Value<int>() ?? 0,
-                Width = rect["width"]?.Value<int>() ?? 0,
-                Height = rect["height"]?.Value<int>() ?? 0
-            };
+            return rect is null
+                ? new RectValue()
+                : new RectValue
+                {
+                    X = rect["x"]?.Value<int>() ?? 0,
+                    Y = rect["y"]?.Value<int>() ?? 0,
+                    Width = rect["width"]?.Value<int>() ?? 0,
+                    Height = rect["height"]?.Value<int>() ?? 0
+                };
         }
 
         private static WorkspaceWindowLayout DeserializeWindow(JObject window)

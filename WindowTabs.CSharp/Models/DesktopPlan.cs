@@ -5,16 +5,16 @@ namespace WindowTabs.CSharp.Models
 {
     internal sealed class DesktopPlan
     {
-        public List<IntPtr> WindowsToSubscribe { get; } = new List<IntPtr>();
+        public List<IntPtr> WindowsToSubscribe { get; } = [];
 
-        public List<WindowGroupingDecision> WindowsToGroup { get; } = new List<WindowGroupingDecision>();
+        public List<WindowGroupingDecision> WindowsToGroup { get; } = [];
 
-        public List<WindowGroupingDecision> WindowsToRegroup { get; } = new List<WindowGroupingDecision>();
+        public List<WindowGroupingDecision> WindowsToRegroup { get; } = [];
 
-        public List<WindowGroupingDecision> WindowsToReorder { get; } = new List<WindowGroupingDecision>();
+        public List<WindowGroupingDecision> WindowsToReorder { get; } = [];
 
-        public List<(IntPtr GroupHandle, IntPtr WindowHandle)> WindowsToRemoveFromGroups { get; } = new List<(IntPtr GroupHandle, IntPtr WindowHandle)>();
+        public List<(IntPtr GroupHandle, IntPtr WindowHandle)> WindowsToRemoveFromGroups { get; } = [];
 
-        public List<IntPtr> GroupsToDestroy { get; } = new List<IntPtr>();
+        public List<IntPtr> GroupsToDestroy { get; } = [];
     }
 }

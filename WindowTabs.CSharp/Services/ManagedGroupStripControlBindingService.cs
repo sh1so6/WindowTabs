@@ -61,14 +61,22 @@ namespace WindowTabs.CSharp.Services
 
         public Button CreateTabButton()
         {
-            return new Button
+            var button = new StripTabButton
             {
                 FlatStyle = FlatStyle.Flat,
                 AutoEllipsis = true,
-                Margin = new Padding(1),
-                Padding = new Padding(6, 2, 6, 2),
-                TextAlign = ContentAlignment.MiddleLeft
+                UseVisualStyleBackColor = false,
+                TabStop = false,
+                Margin = Padding.Empty,
+                Padding = new Padding(12, 1, 12, 1),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point)
             };
+
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.MouseDownBackColor = button.BackColor;
+            button.FlatAppearance.MouseOverBackColor = button.BackColor;
+            return button;
         }
 
         public void WireTabButton(
@@ -133,6 +141,11 @@ namespace WindowTabs.CSharp.Services
             var bitmap = new Bitmap(control.Width, control.Height);
             control.DrawToBitmap(bitmap, new Rectangle(Point.Empty, control.Size));
             return bitmap;
+        }
+
+        private sealed class StripTabButton : Button
+        {
+            protected override bool ShowFocusCues => false;
         }
     }
 }

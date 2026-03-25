@@ -139,7 +139,8 @@ namespace WindowTabs.CSharp.Services
             invalidateStrip?.Invoke();
             if (settingsSession.Current.EnableHoverActivate)
             {
-                state.StartHoverActivate(() => groupWindowActivationService.ActivateWindow(windowHandle));
+                state.StopHoverActivate();
+                groupWindowActivationService.ActivateWindow(windowHandle);
             }
         }
 

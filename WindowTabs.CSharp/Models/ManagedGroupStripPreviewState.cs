@@ -9,12 +9,12 @@ namespace WindowTabs.CSharp.Models
             IEnumerable<IntPtr> currentGroupWindowHandles,
             IEnumerable<IntPtr> previewGroupWindowHandles)
         {
-            CurrentGroupWindowHandles = currentGroupWindowHandles == null
-                ? Array.Empty<IntPtr>()
-                : new List<IntPtr>(currentGroupWindowHandles).AsReadOnly();
-            PreviewGroupWindowHandles = previewGroupWindowHandles == null
+            CurrentGroupWindowHandles = currentGroupWindowHandles is null
+                ? []
+                : [.. currentGroupWindowHandles];
+            PreviewGroupWindowHandles = previewGroupWindowHandles is null
                 ? null
-                : new List<IntPtr>(previewGroupWindowHandles).AsReadOnly();
+                : [.. previewGroupWindowHandles];
         }
 
         public IReadOnlyList<IntPtr> CurrentGroupWindowHandles { get; }

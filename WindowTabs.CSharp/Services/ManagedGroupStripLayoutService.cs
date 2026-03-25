@@ -53,9 +53,11 @@ namespace WindowTabs.CSharp.Services
             Point clientPoint,
             IReadOnlyList<IntPtr> currentGroupWindowHandles,
             IReadOnlyDictionary<IntPtr, ManagedGroupStripButtonState> buttonStates,
+            int tabOverlap,
             Rectangle displayRectangle,
             out ManagedGroupStripDropTargetInfo dropTargetInfo)
         {
+            var overlap = Math.Max(0, tabOverlap);
             if (currentGroupWindowHandles != null)
             {
                 for (var index = 0; index < currentGroupWindowHandles.Count; index++)
@@ -69,7 +71,8 @@ namespace WindowTabs.CSharp.Services
                     }
 
                     var bounds = buttonState.Button.Bounds;
-                    var insertAfter = clientPoint.X >= bounds.Left + (bounds.Width / 2);
+                    var insertAfterBoundary = bounds.Left + Math.Max(1, bounds.Width - overlap);
+                    var insertAfter = clientPoint.X >= insertAfterBoundary;
                     if (insertAfter)
                     {
                         dropTargetInfo = new ManagedGroupStripDropTargetInfo(windowHandle, windowHandle);

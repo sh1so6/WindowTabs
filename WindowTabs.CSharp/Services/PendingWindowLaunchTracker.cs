@@ -9,7 +9,7 @@ namespace WindowTabs.CSharp.Services
         private static readonly TimeSpan MatchWindow = TimeSpan.FromSeconds(30);
         private readonly object syncRoot = new object();
         private readonly Dictionary<string, PendingWindowLaunch> pendingByProcessPath =
-            new Dictionary<string, PendingWindowLaunch>(StringComparer.OrdinalIgnoreCase);
+            new(StringComparer.OrdinalIgnoreCase);
 
         public void Register(string processPath, IntPtr groupHandle, IntPtr invokerHandle)
         {

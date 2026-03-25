@@ -21,7 +21,17 @@ namespace WindowTabs.CSharp.Services
         private readonly Dictionary<IntPtr, ManagedGroupStripButtonState> buttonStates = new Dictionary<IntPtr, ManagedGroupStripButtonState>();
         private readonly StripDropTarget stripDropTarget;
         private readonly StripDropSurface stripDropSurface;
+        private readonly Timer autoHideTimer;
+        private Color chromeBorderColor = ColorSerialization.FromRgb(0x8FA6C4);
+        private Color chromeTopFillColor = ColorSerialization.FromRgb(0xF4F8FC);
+        private Color chromeBottomBorderColor = ColorSerialization.FromRgb(0xC4D0DF);
         private ManagedGroupStripFormState formState = ManagedGroupStripFormState.Empty;
+        private int currentTabOverlap = 20;
+        private string currentHideTabsMode = "never";
+        private int currentHideTabsDelayMilliseconds = 3000;
+        private bool currentShowInside;
+        private bool isAutoHidden;
+        private DateTime? autoHideDeadlineUtc;
 
         public ManagedGroupStripForm(
             ManagedGroupStripDisplayStateService displayStateService,
@@ -48,7 +58,8 @@ namespace WindowTabs.CSharp.Services
             TopMost = true;
             AutoSize = true;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            BackColor = Color.Black;
+            BackColor = ColorSerialization.FromRgb(0xE6EDF6);
+            Padding = new Padding(1, 1, 1, 1);
 
             tabPanel = new FlowLayoutPanel
             {
@@ -57,11 +68,12 @@ namespace WindowTabs.CSharp.Services
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 WrapContents = false,
                 Margin = Padding.Empty,
-                Padding = new Padding(2),
-                BackColor = Color.Black
+                Padding = new Padding(3, 2, 3, 1),
+                BackColor = ColorSerialization.FromRgb(0xF0F5FB)
             };
 
             Controls.Add(tabPanel);
+            Paint += OnPaintChrome;
             HandleCreated += (_, __) => dragDrop.RegisterTarget(Handle, stripDropTarget);
             HandleDestroyed += (_, __) =>
             {
@@ -71,6 +83,12 @@ namespace WindowTabs.CSharp.Services
                 }
             };
             controlBindingService.WireTabPanel(tabPanel, () => formState.CurrentGroupHandle, () => formState.DragSessionState.CurrentGroupWindowHandles);
+            autoHideTimer = new Timer
+            {
+                Interval = 100
+            };
+            autoHideTimer.Tick += OnAutoHideTimerTick;
+            autoHideTimer.Start();
         }
 
         protected override bool ShowWithoutActivation => true;
@@ -87,6 +105,9 @@ namespace WindowTabs.CSharp.Services
                 displayState.Appearance,
                 displayState.ActiveWindowHandle,
                 formState.DragSessionState.DropState);
+            currentTabOverlap = Math.Max(0, displayState.Appearance?.TabOverlap ?? 0);
+            currentHideTabsMode = displayState.Settings?.HideTabsWhenDownByDefault ?? "never";
+            currentHideTabsDelayMilliseconds = Math.Max(0, displayState.Settings?.HideTabsDelayMilliseconds ?? 3000);
 
             var stripSize = GetPreferredSize(Size.Empty);
             if (!stripPlacementService.TryResolveLocation(
@@ -96,18 +117,24 @@ namespace WindowTabs.CSharp.Services
                 displayState.ActiveWindowHandle,
                 stripSize,
                 displayState.Appearance,
-                out var location))
+                out var location,
+                out var showInside))
             {
+                currentShowInside = false;
+                ClearAutoHideRegion();
                 Hide();
                 return;
             }
 
+            currentShowInside = showInside;
             Location = location;
+            ApplyChrome(displayState.Appearance);
             if (!Visible)
             {
                 Show();
             }
 
+            RefreshAutoHideState();
             Invalidate();
         }
 
@@ -115,6 +142,10 @@ namespace WindowTabs.CSharp.Services
         {
             if (disposing)
             {
+                autoHideTimer.Stop();
+                autoHideTimer.Tick -= OnAutoHideTimerTick;
+                autoHideTimer.Dispose();
+                ClearAutoHideRegion();
                 foreach (var state in buttonStates.Values.ToArray())
                 {
                     state.Dispose();
@@ -124,6 +155,56 @@ namespace WindowTabs.CSharp.Services
             }
 
             base.Dispose(disposing);
+        }
+
+        private void ApplyChrome(TabAppearanceInfo appearance)
+        {
+            if (appearance == null)
+            {
+                return;
+            }
+
+            chromeBorderColor = BlendWithWhite(appearance.TabInactiveBorderColor, 0.34f);
+            chromeBottomBorderColor = BlendWithWhite(appearance.TabInactiveBorderColor, 0.52f);
+            chromeTopFillColor = BlendWithWhite(appearance.TabActiveTabColor, 0.16f);
+            BackColor = BlendWithWhite(appearance.TabInactiveBorderColor, 0.78f);
+            tabPanel.BackColor = BlendWithWhite(appearance.TabInactiveTabColor, 0.70f);
+            Invalidate();
+        }
+
+        private void OnPaintChrome(object sender, PaintEventArgs e)
+        {
+            var bounds = ClientRectangle;
+            if (bounds.Width <= 2 || bounds.Height <= 2)
+            {
+                return;
+            }
+
+            var topFillHeight = Math.Max(1, Math.Min(5, bounds.Height - 2));
+            using (var topBrush = new SolidBrush(chromeTopFillColor))
+            {
+                e.Graphics.FillRectangle(topBrush, 1, 1, bounds.Width - 2, topFillHeight);
+            }
+
+            using (var borderPen = new Pen(chromeBorderColor))
+            {
+                e.Graphics.DrawRectangle(borderPen, 0, 0, bounds.Width - 1, bounds.Height - 1);
+            }
+
+            using (var bottomPen = new Pen(chromeBottomBorderColor))
+            {
+                e.Graphics.DrawLine(bottomPen, 1, bounds.Height - 1, bounds.Width - 2, bounds.Height - 1);
+            }
+        }
+
+        private static Color BlendWithWhite(Color color, float amount)
+        {
+            amount = Math.Max(0f, Math.Min(1f, amount));
+            return Color.FromArgb(
+                255,
+                (int)(color.R + ((255 - color.R) * amount)),
+                (int)(color.G + ((255 - color.G) * amount)),
+                (int)(color.B + ((255 - color.B) * amount)));
         }
 
         private void ClearPreviewWindowOrder()
@@ -187,8 +268,95 @@ namespace WindowTabs.CSharp.Services
                 clientPoint,
                 formState,
                 buttonStates,
+                currentTabOverlap,
                 tabPanel.DisplayRectangle,
                 out dropTargetInfo);
+        }
+
+        private void OnAutoHideTimerTick(object sender, EventArgs e)
+        {
+            RefreshAutoHideState();
+        }
+
+        private void RefreshAutoHideState()
+        {
+            if (!Visible)
+            {
+                autoHideDeadlineUtc = null;
+                return;
+            }
+
+            if (!ShouldAutoHideInsideTabs())
+            {
+                autoHideDeadlineUtc = null;
+                SetAutoHidden(false);
+                return;
+            }
+
+            if (IsPointerOverVisibleStrip())
+            {
+                autoHideDeadlineUtc = null;
+                SetAutoHidden(false);
+                return;
+            }
+
+            autoHideDeadlineUtc ??= DateTime.UtcNow.AddMilliseconds(currentHideTabsDelayMilliseconds);
+            if (DateTime.UtcNow >= autoHideDeadlineUtc.Value)
+            {
+                SetAutoHidden(true);
+            }
+        }
+
+        private bool ShouldAutoHideInsideTabs()
+        {
+            return currentShowInside
+                && string.Equals(currentHideTabsMode, "down", StringComparison.OrdinalIgnoreCase)
+                && formState.DragSessionState.DraggedWindowHandle == IntPtr.Zero;
+        }
+
+        private bool IsPointerOverVisibleStrip()
+        {
+            var clientPoint = PointToClient(Control.MousePosition);
+            if (Region != null)
+            {
+                return Region.IsVisible(clientPoint);
+            }
+
+            return ClientRectangle.Contains(clientPoint);
+        }
+
+        private void SetAutoHidden(bool autoHidden)
+        {
+            if (isAutoHidden == autoHidden)
+            {
+                return;
+            }
+
+            isAutoHidden = autoHidden;
+            ApplyAutoHideRegion();
+        }
+
+        private void ApplyAutoHideRegion()
+        {
+            if (!isAutoHidden || !currentShowInside || Height <= 0 || Width <= 0)
+            {
+                ClearAutoHideRegion();
+                return;
+            }
+
+            var visibleHeight = Math.Min(7, Math.Max(1, Height));
+            var top = Math.Max(0, Height - visibleHeight);
+            var previousRegion = Region;
+            Region = new Region(new Rectangle(0, top, Width, visibleHeight));
+            previousRegion?.Dispose();
+        }
+
+        private void ClearAutoHideRegion()
+        {
+            var previousRegion = Region;
+            Region = null;
+            previousRegion?.Dispose();
+            isAutoHidden = false;
         }
 
         private sealed class StripDropTarget : IDragDropTarget

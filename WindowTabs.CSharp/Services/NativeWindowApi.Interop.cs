@@ -42,7 +42,7 @@ namespace WindowTabs.CSharp.Services
         [LibraryImport("user32.dll", EntryPoint = "GetWindowLong")]
         private static partial IntPtr GetWindowLong32(IntPtr hWnd, int nIndex);
 
-        [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
+        [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
         private static partial IntPtr GetWindowLongPtr64(IntPtr hWnd, int nIndex);
 
         [LibraryImport("user32.dll")]

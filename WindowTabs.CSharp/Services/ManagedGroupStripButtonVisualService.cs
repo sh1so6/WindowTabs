@@ -49,6 +49,8 @@ namespace WindowTabs.CSharp.Services
                 state.Button.BackColor = visual.FillColor;
                 state.Button.ForeColor = visual.TextColor;
                 state.Button.FlatAppearance.BorderColor = visual.BorderColor;
+                state.Button.FlatAppearance.MouseOverBackColor = visual.FillColor;
+                state.Button.FlatAppearance.MouseDownBackColor = visual.FillColor;
                 state.Button.TextAlign = visual.TextAlign;
                 state.Button.Size = visual.Size;
                 state.Button.Tag = windowHandle;

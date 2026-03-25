@@ -3,27 +3,20 @@ using System.Linq;
 
 namespace WindowTabs.CSharp.Models
 {
-    internal sealed class WorkspaceGroupLayout
+    internal sealed class WorkspaceGroupLayout(
+        string name,
+        WindowPlacementValue placement,
+        IEnumerable<WorkspaceWindowLayout> windows)
     {
         public WorkspaceGroupLayout()
-            : this(string.Empty, new WindowPlacementValue(), new List<WorkspaceWindowLayout>())
+            : this(string.Empty, new WindowPlacementValue(), [])
         {
         }
 
-        public WorkspaceGroupLayout(
-            string name,
-            WindowPlacementValue placement,
-            IEnumerable<WorkspaceWindowLayout> windows)
-        {
-            Name = name ?? string.Empty;
-            Placement = placement ?? new WindowPlacementValue();
-            Windows = (windows ?? new List<WorkspaceWindowLayout>()).ToArray();
-        }
+        public string Name { get; } = name ?? string.Empty;
 
-        public string Name { get; }
+        public WindowPlacementValue Placement { get; } = placement ?? new WindowPlacementValue();
 
-        public WindowPlacementValue Placement { get; }
-
-        public IReadOnlyList<WorkspaceWindowLayout> Windows { get; }
+        public IReadOnlyList<WorkspaceWindowLayout> Windows { get; } = windows?.ToArray() ?? [];
     }
 }

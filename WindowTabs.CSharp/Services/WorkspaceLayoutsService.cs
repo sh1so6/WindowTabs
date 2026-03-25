@@ -56,7 +56,7 @@ namespace WindowTabs.CSharp.Services
                 }
             }
 
-            var groupLayouts = new List<WorkspaceGroupLayout>();
+            List<WorkspaceGroupLayout> groupLayouts = [];
             var groups = desktopRuntime.Groups.ToList();
             for (var groupIndex = 0; groupIndex < groups.Count; groupIndex++)
             {
@@ -68,7 +68,7 @@ namespace WindowTabs.CSharp.Services
 
                 var firstWindowHandle = runtimeGroup.WindowHandles[0];
                 var placement = NativeWindowApi.GetWindowPlacementValue(firstWindowHandle);
-                var windowLayouts = new List<WorkspaceWindowLayout>();
+                List<WorkspaceWindowLayout> windowLayouts = [];
 
                 for (var windowIndex = 0; windowIndex < runtimeGroup.WindowHandles.Count; windowIndex++)
                 {
@@ -91,8 +91,7 @@ namespace WindowTabs.CSharp.Services
                 "Workspace " + nextNumber,
                 groupLayouts);
 
-            var updatedLayouts = layouts.ToList();
-            updatedLayouts.Insert(0, layoutToAdd);
+            List<WorkspaceLayout> updatedLayouts = [layoutToAdd, .. layouts];
             SaveLayouts(updatedLayouts);
             return layoutToAdd;
         }
@@ -112,7 +111,7 @@ namespace WindowTabs.CSharp.Services
 
         public void RestoreWorkspace(WorkspaceLayout workspace)
         {
-            if (workspace == null)
+            if (workspace is null)
             {
                 return;
             }
@@ -143,15 +142,12 @@ namespace WindowTabs.CSharp.Services
             desktopMonitoringService.RefreshNow("workspace-restore");
         }
 
-        private IReadOnlyList<WindowSnapshot> GetRestorableWindows()
-        {
-            return desktopWindowCatalogService.GetRestorableWindowsInZOrder();
-        }
+        private IReadOnlyList<WindowSnapshot> GetRestorableWindows() => desktopWindowCatalogService.GetRestorableWindowsInZOrder();
 
         private List<IntPtr> ResolveWindowHandles(WorkspaceGroupLayout groupLayout, IReadOnlyList<WindowSnapshot> windowsInZOrder)
         {
             var availableHandles = new HashSet<IntPtr>(windowsInZOrder.Select(window => window.Handle));
-            var result = new List<IntPtr>();
+            List<IntPtr> result = [];
 
             foreach (var windowLayout in groupLayout.Windows.OrderBy(window => window.ZOrder))
             {
@@ -173,7 +169,7 @@ namespace WindowTabs.CSharp.Services
 
         private static void ApplyPlacement(IntPtr handle, WindowPlacementValue placement)
         {
-            if (handle == IntPtr.Zero || placement == null)
+            if (handle == IntPtr.Zero || placement is null)
             {
                 return;
             }
@@ -181,10 +177,7 @@ namespace WindowTabs.CSharp.Services
             NativeWindowApi.SetWindowPlacementValue(handle, placement);
         }
 
-        private static void ApplyZOrder(IReadOnlyList<IntPtr> handles)
-        {
-            NativeWindowApi.ApplyZOrder(handles);
-        }
+        private static void ApplyZOrder(IReadOnlyList<IntPtr> handles) => NativeWindowApi.ApplyZOrder(handles);
 
         private void SaveLayouts(IReadOnlyList<WorkspaceLayout> layouts)
         {

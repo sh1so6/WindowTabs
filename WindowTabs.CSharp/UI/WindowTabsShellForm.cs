@@ -27,6 +27,7 @@ namespace WindowTabs.CSharp.UI
         private readonly TabPage appearanceTabPage;
         private readonly TabPage behaviorTabPage;
         private readonly TabPage diagnosticsTabPage;
+        private bool shouldHideOnFirstShow = true;
         private string lastRequestedSettingsView = "none";
 
         public WindowTabsShellForm(
@@ -52,30 +53,37 @@ namespace WindowTabs.CSharp.UI
             this.behaviorSettingsControl = behaviorSettingsControl;
             this.diagnosticsSettingsControl = diagnosticsSettingsControl;
 
-            Text = "WindowTabs";
+            Text = "WindowTabs Settings";
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(720, 420);
             Size = new Size(820, 520);
+            ShowInTaskbar = false;
+            ShowIcon = false;
+            WindowState = FormWindowState.Minimized;
+            BackColor = Color.White;
 
             var header = new Label
             {
                 Dock = DockStyle.Top,
                 Height = 52,
-                Text = "WindowTabs Workspace",
+                Text = "WindowTabs Settings",
                 Font = new Font(Font.FontFamily, 18, FontStyle.Bold),
-                Padding = new Padding(16, 16, 16, 8)
+                Padding = new Padding(16, 16, 16, 8),
+                BackColor = Color.White
             };
 
             summaryLabel = new Label
             {
                 Dock = DockStyle.Fill,
                 Padding = new Padding(16),
-                Font = new Font("Consolas", 10),
+                Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point),
                 Text = BuildSummary(this.desktopMonitoringService.CurrentState),
-                AutoEllipsis = false
+                AutoEllipsis = false,
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(48, 64, 80)
             };
 
-            statusTabPage = new TabPage("Status");
+            statusTabPage = new TabPage("Overview");
             statusTabPage.Controls.Add(summaryLabel);
 
             programsTabPage = new TabPage("Programs");
@@ -90,7 +98,7 @@ namespace WindowTabs.CSharp.UI
             behaviorTabPage = new TabPage("Behavior");
             behaviorTabPage.Controls.Add(behaviorSettingsControl);
 
-            diagnosticsTabPage = new TabPage("Diagnostics");
+            diagnosticsTabPage = new TabPage("Advanced");
             diagnosticsTabPage.Controls.Add(diagnosticsSettingsControl);
 
             mainTabs = new TabControl
@@ -106,7 +114,7 @@ namespace WindowTabs.CSharp.UI
 
             var languageButton = new Button
             {
-                Text = "Reload Localization",
+                Text = "Reload Language",
                 Dock = DockStyle.Bottom,
                 Height = 36
             };
@@ -129,6 +137,11 @@ namespace WindowTabs.CSharp.UI
             desktopMonitoringService.Start();
             RefreshSummary();
             RefreshAllTabs();
+
+            if (shouldHideOnFirstShow)
+            {
+                BeginInvoke((MethodInvoker)HideInitialShell);
+            }
         }
 
         private void OnFormClosed(object sender, FormClosedEventArgs e)
@@ -173,6 +186,7 @@ namespace WindowTabs.CSharp.UI
 
         private void OnManagerViewRequested(object sender, SettingsViewType view)
         {
+            shouldHideOnFirstShow = false;
             lastRequestedSettingsView = view.ToString();
             if (WindowState == FormWindowState.Minimized)
             {
@@ -185,6 +199,18 @@ namespace WindowTabs.CSharp.UI
             BringToFront();
             RefreshSummary();
             RefreshAllTabs();
+        }
+
+        private void HideInitialShell()
+        {
+            if (!shouldHideOnFirstShow)
+            {
+                return;
+            }
+
+            shouldHideOnFirstShow = false;
+            WindowState = FormWindowState.Normal;
+            Hide();
         }
 
         private void SelectRequestedView(SettingsViewType view)

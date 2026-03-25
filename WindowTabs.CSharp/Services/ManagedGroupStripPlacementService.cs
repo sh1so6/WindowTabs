@@ -16,9 +16,11 @@ namespace WindowTabs.CSharp.Services
             IntPtr activeWindowHandle,
             Size stripSize,
             TabAppearanceInfo appearance,
-            out Point location)
+            out Point location,
+            out bool showInside)
         {
             location = Point.Empty;
+            showInside = false;
 
             var anchorWindow = group.WindowHandles
                 .Select(hwnd => windowsByHandle.TryGetValue(hwnd, out var window) ? window : null)
@@ -46,15 +48,48 @@ namespace WindowTabs.CSharp.Services
                 return false;
             }
 
-            var offsetY = group.SnapTabHeightMargin
-                ? Math.Max(1, appearance.TabHeight - 1)
-                : Math.Max(22, appearance.TabHeight);
             var stripX = string.Equals(group.TabPosition, "TopLeft", StringComparison.OrdinalIgnoreCase)
                 ? anchorWindow.Bounds.X
                 : Math.Max(anchorWindow.Bounds.X, anchorWindow.Bounds.Right - stripSize.Width);
+            showInside = ShouldShowInside(anchorWindow, stripX, stripSize, appearance);
 
-            location = new Point(stripX, Math.Max(0, anchorWindow.Bounds.Y - offsetY - 4));
+            location = showInside
+                ? new Point(stripX, anchorWindow.Bounds.Y - 1)
+                : new Point(stripX, Math.Max(0, anchorWindow.Bounds.Y - appearance.TabHeight + appearance.TabHeightOffset));
             return true;
+        }
+
+        private static bool ShouldShowInside(WindowSnapshot anchorWindow, int stripX, Size stripSize, TabAppearanceInfo appearance)
+        {
+            if (anchorWindow == null || appearance == null)
+            {
+                return false;
+            }
+
+            var stripHeight = Math.Max(1, appearance.TabHeight);
+            var stripWidth = Math.Max(1, stripSize.Width);
+            var outsideBounds = new Rectangle(
+                stripX,
+                anchorWindow.Bounds.Y - appearance.TabHeight + appearance.TabHeightOffset,
+                stripWidth,
+                stripHeight);
+            var insideBounds = new Rectangle(
+                stripX,
+                anchorWindow.Bounds.Y - 1,
+                stripWidth,
+                stripHeight);
+
+            foreach (var screen in Screen.AllScreens)
+            {
+                var insideHeight = Rectangle.Intersect(screen.Bounds, insideBounds).Height;
+                var outsideHeight = Rectangle.Intersect(screen.Bounds, outsideBounds).Height;
+                if (insideHeight > outsideHeight)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsFullscreen(WindowSnapshot window)

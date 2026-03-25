@@ -5,6 +5,8 @@ namespace WindowTabs.CSharp.Services
 {
     internal sealed class ManagedGroupStripPaintService
     {
+        private static readonly Color DropMarkerColor = ColorSerialization.FromRgb(0xCF8D27);
+        private static readonly Color DropOutlineColor = ColorSerialization.FromRgb(0xE2B66F);
         private readonly WindowPresentationStateStore windowPresentationStateStore;
 
         public ManagedGroupStripPaintService(WindowPresentationStateStore windowPresentationStateStore)
@@ -21,10 +23,10 @@ namespace WindowTabs.CSharp.Services
 
             if (isDropTarget)
             {
-                using (var brush = new SolidBrush(Color.Gold))
+                using (var brush = new SolidBrush(DropMarkerColor))
                 {
-                    var markerX = insertAfterTarget ? buttonSize.Width - 4 : 1;
-                    graphics.FillRectangle(brush, markerX, 1, 3, Math.Max(1, buttonSize.Height - 2));
+                    var markerX = insertAfterTarget ? buttonSize.Width - 2 : 1;
+                    graphics.FillRectangle(brush, markerX, 2, 1, Math.Max(1, buttonSize.Height - 4));
                 }
             }
 
@@ -51,7 +53,7 @@ namespace WindowTabs.CSharp.Services
 
         private static void DrawDropTargetOutline(Graphics graphics, Size buttonSize)
         {
-            using (var pen = new Pen(Color.Gold, 3))
+            using (var pen = new Pen(DropOutlineColor, 1))
             {
                 graphics.DrawRectangle(pen, 1, 1, buttonSize.Width - 3, buttonSize.Height - 3);
             }

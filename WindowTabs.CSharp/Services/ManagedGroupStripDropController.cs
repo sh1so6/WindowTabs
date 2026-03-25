@@ -19,14 +19,11 @@ namespace WindowTabs.CSharp.Services
             Point clientPoint,
             IDropSurface dropSurface)
         {
-            if (dropSurface == null)
-            {
-                throw new ArgumentNullException(nameof(dropSurface));
-            }
+            ArgumentNullException.ThrowIfNull(dropSurface);
 
             var dragInfo = data as TabDragInfo;
             var dropTargetInfo = default(ManagedGroupStripDropTargetInfo);
-            var canEnter = dragInfo != null
+            var canEnter = dragInfo is not null
                 && dragInfo.WindowHandle != IntPtr.Zero
                 && dropSurface.TryResolveDropTarget(clientPoint, out dropTargetInfo);
 
@@ -43,10 +40,7 @@ namespace WindowTabs.CSharp.Services
             Point clientPoint,
             IDropSurface dropSurface)
         {
-            if (dropSurface == null)
-            {
-                throw new ArgumentNullException(nameof(dropSurface));
-            }
+            ArgumentNullException.ThrowIfNull(dropSurface);
 
             if (dropSurface.TryResolveDropTarget(clientPoint, out var dropTargetInfo))
             {
@@ -63,12 +57,9 @@ namespace WindowTabs.CSharp.Services
             Point clientPoint,
             IDropSurface dropSurface)
         {
-            if (dropSurface == null)
-            {
-                throw new ArgumentNullException(nameof(dropSurface));
-            }
+            ArgumentNullException.ThrowIfNull(dropSurface);
 
-            if (!(data is TabDragInfo dragInfo)
+            if (data is not TabDragInfo dragInfo
                 || dragInfo.WindowHandle == IntPtr.Zero
                 || !dropSurface.TryResolveDropTarget(clientPoint, out var dropTargetInfo)
                 || dropTargetInfo.TargetWindowHandle == dragInfo.WindowHandle)
@@ -86,11 +77,7 @@ namespace WindowTabs.CSharp.Services
 
         public void HandleDragExit(IDropSurface dropSurface)
         {
-            if (dropSurface == null)
-            {
-                throw new ArgumentNullException(nameof(dropSurface));
-            }
-
+            ArgumentNullException.ThrowIfNull(dropSurface);
             dropSurface.ClearDragState();
         }
 

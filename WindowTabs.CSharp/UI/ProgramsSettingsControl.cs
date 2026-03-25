@@ -181,8 +181,7 @@ namespace WindowTabs.CSharp.UI
                 return;
             }
 
-            var row = grid.Rows[e.RowIndex].Tag as ProgramSettingsRow;
-            if (row == null)
+            if (grid.Rows[e.RowIndex].Tag is not ProgramSettingsRow row)
             {
                 return;
             }
@@ -231,8 +230,7 @@ namespace WindowTabs.CSharp.UI
                 return;
             }
 
-            var row = grid.Rows[e.RowIndex].Tag as ProgramSettingsRow;
-            if (row == null || !row.HasSettings)
+            if (grid.Rows[e.RowIndex].Tag is not ProgramSettingsRow row || !row.HasSettings)
             {
                 return;
             }
@@ -243,9 +241,9 @@ namespace WindowTabs.CSharp.UI
 
         private IReadOnlyList<ProgramSettingsRow> BuildRows(DesktopRefreshResult refreshResult, bool configuredOnly)
         {
-            var rows = new List<ProgramSettingsRow>();
+            List<ProgramSettingsRow> rows = [];
             var screenRegion = refreshResult.ScreenRegion ?? new RectValue();
-            var runningPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> runningPaths = new(StringComparer.OrdinalIgnoreCase);
 
             foreach (var window in refreshResult.Windows)
             {

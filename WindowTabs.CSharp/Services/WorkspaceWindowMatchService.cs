@@ -8,17 +8,10 @@ namespace WindowTabs.CSharp.Services
     {
         public bool IsMatch(WindowSnapshot window, WorkspaceWindowLayout windowLayout)
         {
-            if (window == null || windowLayout == null)
-            {
-                return false;
-            }
-
-            if (!MatchesProcessName(window.Process?.ExeName, windowLayout.Name))
-            {
-                return false;
-            }
-
-            return MatchesTitle(window.Text ?? string.Empty, windowLayout);
+            return window is not null
+                && windowLayout is not null
+                && MatchesProcessName(window.Process?.ExeName, windowLayout.Name)
+                && MatchesTitle(window.Text ?? string.Empty, windowLayout);
         }
 
         private static bool MatchesProcessName(string processName, string expectedProcessName)
@@ -37,32 +30,27 @@ namespace WindowTabs.CSharp.Services
         private static bool MatchesTitle(string title, WorkspaceWindowLayout windowLayout)
         {
             var expectedTitle = windowLayout.Title ?? string.Empty;
-            switch (windowLayout.MatchType)
+            return windowLayout.MatchType switch
             {
-                case WorkspaceWindowMatchType.ExactMatch:
-                    if (string.IsNullOrEmpty(expectedTitle))
-                    {
-                        return true;
-                    }
+                WorkspaceWindowMatchType.ExactMatch when string.IsNullOrEmpty(expectedTitle) => true,
+                WorkspaceWindowMatchType.ExactMatch => string.Equals(title, expectedTitle, StringComparison.Ordinal),
+                WorkspaceWindowMatchType.StartsWith => title.StartsWith(expectedTitle, StringComparison.Ordinal),
+                WorkspaceWindowMatchType.EndsWith => title.EndsWith(expectedTitle, StringComparison.Ordinal),
+                WorkspaceWindowMatchType.Contains => title.Contains(expectedTitle),
+                WorkspaceWindowMatchType.RegEx => MatchesRegularExpression(title, expectedTitle),
+                _ => false
+            };
+        }
 
-                    return string.Equals(title, expectedTitle, StringComparison.Ordinal);
-                case WorkspaceWindowMatchType.StartsWith:
-                    return title.StartsWith(expectedTitle, StringComparison.Ordinal);
-                case WorkspaceWindowMatchType.EndsWith:
-                    return title.EndsWith(expectedTitle, StringComparison.Ordinal);
-                case WorkspaceWindowMatchType.Contains:
-                    return title.Contains(expectedTitle);
-                case WorkspaceWindowMatchType.RegEx:
-                    try
-                    {
-                        return Regex.IsMatch(title, expectedTitle);
-                    }
-                    catch
-                    {
-                        return false;
-                    }
-                default:
-                    return false;
+        private static bool MatchesRegularExpression(string title, string expectedTitle)
+        {
+            try
+            {
+                return Regex.IsMatch(title, expectedTitle);
+            }
+            catch
+            {
+                return false;
             }
         }
     }
